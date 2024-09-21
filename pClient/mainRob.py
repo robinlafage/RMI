@@ -46,7 +46,7 @@ class MyRob(CRobLinkAngs):
                 if self.measures.visitingLed==True:
                     state='wait'
                 if self.measures.ground==0:
-                    self.setVisitingLed(True);
+                    self.setVisitingLed(True)
                 self.wander()
             elif state=='wait':
                 self.setReturningLed(True)
