@@ -87,13 +87,18 @@ class MyRob(CRobLinkAngs):
         #We arrive in a new cell
         if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= 0.1 or abs(y - self.prevPos[-1][1]+2) <= 0.1 or abs(x - self.prevPos[-1][0]-2) <= 0.1 or abs(y - self.prevPos[-1][1]-2) <= 0.1:
             print()
-            self.prevPos.append([x, y])
-            self.visited.append([x, y])
+            print("New cell")
+            if not self.goingBack:
+                self.prevPos.append([x, y])
+            self.visited.append([round(x), round(y)])
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
             if self.isIntersection(walls):
                 self.intersections.append([x, y])
 
             self.chooseDirection(walls, dir)
+
+            if self.goingBack:
+                self.prevPos.pop()
 
         #If we are not in a new cell, we keep going
         else:
@@ -144,85 +149,139 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(SPEED-OFFSET, SPEED)
 
     def chooseDirection(self, walls, dir):
-        nextVisitedCells = self.nextVisitedCells(dir)
 
-        if not self.goingBack:
-            if not walls[0] and not nextVisitedCells[0]:
-                print("go forward")
-                self.driveMotors(SPEED, SPEED)
-            elif not walls[1] and not nextVisitedCells[1]:
-                print("turn left")
-                #To avoid the case where the robot is facing the wall and the direction is positive
-                if dir <= 180 and dir >= 170:
-                    dir = -180
-                currentDir = dir
-                while dir <= currentDir + 65: #à modifier en fonction de la vitesse de déplacement du robot
-                    self.driveMotors(-SPEED, SPEED)
-                    self.readSensors()
-                    dir = self.measures.compass
-                self.driveMotors(-SPEED, SPEED)
-            elif not walls[2] and not nextVisitedCells[2]:
-                print("turn right")
-                #To avoid the case where the robot is facing the wall and the direction is degative
-                if dir >= -180 and dir <= -170:
-                    dir = 180
-                currentDir = dir
-                while dir >= currentDir - 65:
-                    self.driveMotors(SPEED, -SPEED)
-                    self.readSensors()
-                    dir = self.measures.compass
-                self.driveMotors(SPEED, -SPEED)
-            elif not walls[3] and not nextVisitedCells[3]:
-                #A TESTER
-                print("turn back")
-                currentDir = dir
-                while dir <= currentDir + 180 or dir >= currentDir - 180:
-                    self.driveMotors(-SPEED, SPEED)
-                    self.readSensors()
-                    dir = self.measures.compass
-                self.driveMotors(-SPEED, SPEED)
-            else:
-                print("Path entirely explored, going back to the previous intersection")
-                self.goingBack = True
+        nextVisitedCells = [False, False, False, False]
+        target = -1
+        if self.goingBack:
+            target = self.getDirectionTarget(dir)
         else:
-            print("Going back to previous intersection")
-
-        
+            nextVisitedCells = self.nextVisitedCells(dir)
             
+
+        if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
+            print("go forward")
+            self.driveMotors(SPEED, SPEED)
+        elif (not walls[1] and not nextVisitedCells[1] and target == -1) or target == 1:
+            print("turn left")
+            #To avoid the case where the robot is facing the wall and the direction is positive
+            if dir <= 180 and dir >= 170:
+                dir = -180
+            currentDir = dir
+            while dir <= currentDir + 65: #à modifier en fonction de la vitesse de déplacement du robot
+                self.driveMotors(-SPEED, SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+            self.driveMotors(-SPEED, SPEED)
+        elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
+            print("turn right")
+            #To avoid the case where the robot is facing the wall and the direction is degative
+            if dir >= -180 and dir <= -170:
+                dir = 180
+            currentDir = dir
+            while dir >= currentDir - 65:
+                self.driveMotors(SPEED, -SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+            self.driveMotors(SPEED, -SPEED)
+        elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
+            #A TESTER
+            print("turn back")
+            currentDir = dir
+            while abs(dir - currentDir) <= 170:
+                # print("currentDir : ", currentDir, ", dir : ", dir, ", final : ", abs(dir - currentDir))
+                self.driveMotors(-SPEED, SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+            self.driveMotors(-SPEED, SPEED)
+        else:
+            print("Path entirely explored, going back to the previous intersection")
+            self.goingBack = True
+            self.chooseDirection(walls, dir)
+        
+        return
+            
+    
+    #Return the direction to take to go back to the previous intersection
+    #0: forward, 1: left, 2: right, 3: back
+    def getDirectionTarget(self, dir):
+        target = -1
+        diffX = round(self.prevPos[-1][0] - self.prevPos[-2][0])
+        diffY = round(self.prevPos[-1][1] - self.prevPos[-2][1])
+        if abs(dir) <= 10:
+            if diffX > 0:
+                target = 3
+            elif diffX < 0:
+                target = 0
+            elif diffY > 0:
+                target = 2
+            elif diffY < 0:
+                target = 1
+        elif abs(dir - 90) <= 10:
+            if diffX > 0:
+                target = 1
+            elif diffX < 0:
+                target = 2
+            elif diffY > 0:
+                target = 3
+            elif diffY < 0:
+                target = 0
+        elif abs(dir + 90) <= 10:
+            if diffX > 0:
+                target = 2
+            elif diffX < 0:
+                target = 1
+            elif diffY > 0:
+                target = 0
+            elif diffY < 0:
+                target = 3
+        elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
+            if diffX > 0:
+                target = 0
+            elif diffX < 0:
+                target = 3
+            elif diffY > 0:
+                target = 1
+            elif diffY < 0:
+                target = 2
+
+        print("target: ", target)
+        return target
 
     #Return a list of the adjacent cells that have already been visited
     #The list is ordered as follows: [forward, left, right, back], from the point of view of the robot
     def nextVisitedCells(self, dir):
         visitedCells = [False, False, False, False]
-        x = round(self.prevPos[-1][0])
-        y = round(self.prevPos[-1][1])
+        # x = round(self.visited[-1][0])
+        # y = round(self.visited[-1][1])
 
-        roundedVisited = [[round(nb) for nb in subList] for subList in self.visited]
+        x = self.visited[-1][0]
+        y = self.visited[-1][1]
+
+        # roundedVisited = [[round(nb) for nb in subList] for subList in self.visited]
 
         if abs(dir) <= 10:
-            visitedCells[0] = [x+2, y] in roundedVisited
-            visitedCells[1] = [x, y+2] in roundedVisited
-            visitedCells[2] = [x, y-2] in roundedVisited
-            visitedCells[3] = [x-2, y] in roundedVisited
+            visitedCells[0] = [x+2, y] in self.visited
+            visitedCells[1] = [x, y+2] in self.visited
+            visitedCells[2] = [x, y-2] in self.visited
+            visitedCells[3] = [x-2, y] in self.visited
         elif abs(dir - 90) <= 10:
-            visitedCells[0] = [x, y+2] in roundedVisited
-            visitedCells[1] = [x-2, y] in roundedVisited
-            visitedCells[2] = [x+2, y] in roundedVisited
-            visitedCells[3] = [x, y-2] in roundedVisited
+            visitedCells[0] = [x, y+2] in self.visited
+            visitedCells[1] = [x-2, y] in self.visited
+            visitedCells[2] = [x+2, y] in self.visited
+            visitedCells[3] = [x, y-2] in self.visited
         elif abs(dir + 90) <= 10:
-            visitedCells[0] = [x, y-2] in roundedVisited
-            visitedCells[1] = [x+2, y] in roundedVisited
-            visitedCells[2] = [x-2, y] in roundedVisited
-            visitedCells[3] = [x, y+2] in roundedVisited
+            visitedCells[0] = [x, y-2] in self.visited
+            visitedCells[1] = [x+2, y] in self.visited
+            visitedCells[2] = [x-2, y] in self.visited
+            visitedCells[3] = [x, y+2] in self.visited
         elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
-            visitedCells[0] = [x-2, y] in roundedVisited
-            visitedCells[1] = [x, y-2] in roundedVisited
-            visitedCells[2] = [x, y+2] in roundedVisited
-            visitedCells[3] = [x+2, y] in roundedVisited
+            visitedCells[0] = [x-2, y] in self.visited
+            visitedCells[1] = [x, y-2] in self.visited
+            visitedCells[2] = [x, y+2] in self.visited
+            visitedCells[3] = [x+2, y] in self.visited
 
         # print([x, y])
-        # print(roundedVisited)
-        print(visitedCells)
+        # print(visitedCells)
         return visitedCells
 
 
