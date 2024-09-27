@@ -8,8 +8,9 @@ CELLROWS=7
 CELLCOLS=14
 
 class MyRob(CRobLinkAngs):
-    def __init__(self, rob_name, rob_id, angles, host):
+    def __init__(self, rob_name, rob_id, angles, host, previous_distances):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
+        self.previous_distances  = previous_distances
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -46,7 +47,7 @@ class MyRob(CRobLinkAngs):
                 if self.measures.visitingLed==True:
                     state='wait'
                 if self.measures.ground==0:
-                    self.setVisitingLed(True);
+                    self.setVisitingLed(True)
                 self.wander()
             elif state=='wait':
                 self.setReturningLed(True)
@@ -68,21 +69,57 @@ class MyRob(CRobLinkAngs):
         left_id = 1
         right_id = 2
         back_id = 3
-        if    self.measures.irSensor[center_id] > 5.0\
-           or self.measures.irSensor[left_id]   > 5.0\
-           or self.measures.irSensor[right_id]  > 5.0\
-           or self.measures.irSensor[back_id]   > 5.0:
+        
+        # These statements make the robot rotate when there is a wall in front
+        if    self.measures.irSensor[center_id]  > 1.1\
+            and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
+            and self.measures.irSensor[right_id] > 1.15:
             print('Rotate left')
-            self.driveMotors(-0.1,+0.1)
-        elif self.measures.irSensor[left_id]> 2.7:
-            print('Rotate slowly right')
-            self.driveMotors(0.1,0.0)
-        elif self.measures.irSensor[right_id]> 2.7:
-            print('Rotate slowly left')
-            self.driveMotors(0.0,0.1)
+            self.driveMotors(-0.15,+0.15)
+        elif    self.measures.irSensor[center_id]  > 1.1\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
+            and self.measures.irSensor[left_id] > 1.15:
+            print('Rotate right')
+            self.driveMotors(+0.15,-0.15)
+
+        # Security statements, to avoid collision with a lateral wall
+        elif self.measures.irSensor[left_id]> 15.0\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
+            print('Rotate fast right, too close from the wall')
+            self.driveMotors(0.15,-0.05)
+        elif self.measures.irSensor[right_id]> 15.0\
+            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
+            print('Rotate fast left, too close from the wall')
+            self.driveMotors(-0.05,0.15)
+        
+        # Security statements, to avoid collision with a front wall
+        elif self.measures.irSensor[center_id]> 15.0\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
+            print('Rotate fast right, too close from the wall')
+            self.driveMotors(0.15,-0.15)
+        elif self.measures.irSensor[center_id]> 15.0\
+            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
+            print('Rotate fast left, too close from the wall')
+            self.driveMotors(-0.15,0.15)
+
+        # These two statements make the robot go as straight as possible
+        elif self.previous_distances\
+            and self.previous_distances[left_id] > self.measures.irSensor[left_id]\
+            and self.previous_distances[right_id] < self.measures.irSensor[right_id]:
+            print('Navigate to the left to center the robot')
+            self.driveMotors(0.12,0.15)
+        elif self.previous_distances\
+            and self.previous_distances[left_id] < self.measures.irSensor[left_id]\
+            and self.previous_distances[right_id] > self.measures.irSensor[right_id]:
+            print('Navigate to the right to center the robot')
+            self.driveMotors(0.15,0.12)
+
         else:
             print('Go')
-            self.driveMotors(0.1,0.1)
+            self.driveMotors(0.15,0.15)
+        
+        # Save the previous distances in order to permit to make the robot go straight
+        self.previous_distances=[self.measures.irSensor[center_id],self.measures.irSensor[left_id],self.measures.irSensor[right_id],self.measures.irSensor[back_id]]
 
 class Map():
     def __init__(self, filename):
@@ -131,7 +168,7 @@ for i in range(1, len(sys.argv),2):
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,60.0,-60.0,180.0],host)
+    rob=MyRob(rob_name,pos,[0.0,60.0,-60.0,180.0],host, [])
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
