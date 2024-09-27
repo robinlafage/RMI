@@ -7,13 +7,15 @@ import xml.etree.ElementTree as ET
 CELLROWS=7
 CELLCOLS=14
 SPEED = 0.1
+OFFSET = 0.04
 
 class MyRob(CRobLinkAngs):
-    def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited):
+    def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited, goingBack):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
         self.prevPos = prevPos
         self.intersections = intersections
         self.visited = visited
+        self.goingBack = False
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -83,80 +85,38 @@ class MyRob(CRobLinkAngs):
         dir = self.measures.compass
         
         #We arrive in a new cell
-        if not self.prevPos or x == self.prevPos[-1][0] + 2 or y == self.prevPos[-1][1] + 2 or x == self.prevPos[-1][0] - 2 or y == self.prevPos[-1][1] - 2:
+        if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= 0.1 or abs(y - self.prevPos[-1][1]+2) <= 0.1 or abs(x - self.prevPos[-1][0]-2) <= 0.1 or abs(y - self.prevPos[-1][1]-2) <= 0.1:
             print()
             self.prevPos.append([x, y])
             self.visited.append([x, y])
-            walls = self.getWalls(dir, centerSensor, leftSensor, rightSensor, backSensor)
+            walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
             if self.isIntersection(walls):
                 self.intersections.append([x, y])
 
-            for i in range(len(walls)):
-                if not walls[i]:
-                    if i == 0:
-                        #go forward
-                        print("go forward")
-                        self.driveMotors(SPEED, SPEED)
-                        break
-                    elif i == 1:
-                        #turn left
-                        print("turn left")
-                        #To avoid the case where the robot is facing the wall and the direction is positive
-                        if dir <= 180 and dir >= 170:
-                            dir = -180
-                        currentDir = dir
-                        while dir <= currentDir + 65: #à modifier en fonction de la vitesse de déplacement du robot
-                            self.driveMotors(-SPEED, SPEED)
-                            self.readSensors()
-                            dir = self.measures.compass
-                        self.driveMotors(-SPEED, SPEED)
-                        break
-                    elif i == 2:
-                        #turn right
-                        print("turn right")
-                        #To avoid the case where the robot is facing the wall and the direction is degative
-                        if dir >= -180 and dir <= -170:
-                            dir = 180
-                        currentDir = dir
-                        while dir >= currentDir - 65:
-                            self.driveMotors(SPEED, -SPEED)
-                            self.readSensors()
-                            dir = self.measures.compass
-                        self.driveMotors(SPEED, -SPEED)
-                        break
-                    elif i == 3:
-                        #turn back A TESTER
-                        print("turn back")
-                        currentDir = dir
-                        while dir <= currentDir + 180:
-                            self.driveMotors(-SPEED, SPEED)
-                            self.readSensors()
-                            dir = self.measures.compass
-                        self.driveMotors(-SPEED, SPEED)
-                        break
+            self.chooseDirection(walls, dir)
 
         #If we are not in a new cell, we keep going
         else:
             self.goForward(dir)
 
 
-    def getWalls(self, dir, centerSensor, leftSensor, rightSensor, backSensor):
+    def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         if centerSensor >= 1.3:
-            print("mur devant")
+            # print("mur devant")
             walls[0] = True
         if leftSensor >= 1.3:
-            print("mur à gauche")
+            # print("mur à gauche")
             walls[1] = True
         if rightSensor >= 1.3:
-            print("mur à droite")
+            # print("mur à droite")
             walls[2] = True
         if backSensor >= 1.3:
-            print("mur derrière")
+            # print("mur derrière")
             walls[3] = True
 
-        if not any(walls):
-            print("pas de mur")
+        # if not any(walls):
+            # print("pas de mur")
 
         return walls
     
@@ -166,7 +126,8 @@ class MyRob(CRobLinkAngs):
     
     def goForward(self, dir):
         #If we are not deviating from the direction, we keep going
-        if (dir >= -1 and dir <= 1) or (dir >= 89 and dir <= 91) or (dir >= 179 and dir <= 180) or (dir <= -180 and dir >= -181) or (dir >= -91 and dir <= -89):
+        # Un degré de tolérance, surement a supprimer #if (dir >= -1 and dir <= 1) or (dir >= 89 and dir <= 91) or (dir >= 179 and dir <= 180) or (dir <= -180 and dir >= -181) or (dir >= -91 and dir <= -89):
+        if dir == 0 or dir == 90 or dir == -90 or dir == 180 or dir == -180:
             self.driveMotors(SPEED, SPEED)
             return
         
@@ -174,14 +135,99 @@ class MyRob(CRobLinkAngs):
 
         if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
             #Turn slowly right
-            print("Adjusting direction - turning right")
-            self.driveMotors(SPEED, SPEED-0.03)
+            # print("Adjusting direction - turning right")
+            self.driveMotors(SPEED, SPEED-OFFSET)
 
-        if (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
+        elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
             #Turn slowly left
-            print("Adjusting direction - turning left")
-            self.driveMotors(SPEED-0.03, SPEED)
+            # print("Adjusting direction - turning left")
+            self.driveMotors(SPEED-OFFSET, SPEED)
 
+    def chooseDirection(self, walls, dir):
+        nextVisitedCells = self.nextVisitedCells(dir)
+
+        if not self.goingBack:
+            if not walls[0] and not nextVisitedCells[0]:
+                print("go forward")
+                self.driveMotors(SPEED, SPEED)
+            elif not walls[1] and not nextVisitedCells[1]:
+                print("turn left")
+                #To avoid the case where the robot is facing the wall and the direction is positive
+                if dir <= 180 and dir >= 170:
+                    dir = -180
+                currentDir = dir
+                while dir <= currentDir + 65: #à modifier en fonction de la vitesse de déplacement du robot
+                    self.driveMotors(-SPEED, SPEED)
+                    self.readSensors()
+                    dir = self.measures.compass
+                self.driveMotors(-SPEED, SPEED)
+            elif not walls[2] and not nextVisitedCells[2]:
+                print("turn right")
+                #To avoid the case where the robot is facing the wall and the direction is degative
+                if dir >= -180 and dir <= -170:
+                    dir = 180
+                currentDir = dir
+                while dir >= currentDir - 65:
+                    self.driveMotors(SPEED, -SPEED)
+                    self.readSensors()
+                    dir = self.measures.compass
+                self.driveMotors(SPEED, -SPEED)
+            elif not walls[3] and not nextVisitedCells[3]:
+                #A TESTER
+                print("turn back")
+                currentDir = dir
+                while dir <= currentDir + 180 or dir >= currentDir - 180:
+                    self.driveMotors(-SPEED, SPEED)
+                    self.readSensors()
+                    dir = self.measures.compass
+                self.driveMotors(-SPEED, SPEED)
+            else:
+                print("Path entirely explored, going back to the previous intersection")
+                self.goingBack = True
+        else:
+            print("Going back to previous intersection")
+
+        
+            
+
+    #Return a list of the adjacent cells that have already been visited
+    #The list is ordered as follows: [forward, left, right, back], from the point of view of the robot
+    def nextVisitedCells(self, dir):
+        visitedCells = [False, False, False, False]
+        x = round(self.prevPos[-1][0])
+        y = round(self.prevPos[-1][1])
+
+        roundedVisited = [[round(nb) for nb in subList] for subList in self.visited]
+
+        if abs(dir) <= 10:
+            visitedCells[0] = [x+2, y] in roundedVisited
+            visitedCells[1] = [x, y+2] in roundedVisited
+            visitedCells[2] = [x, y-2] in roundedVisited
+            visitedCells[3] = [x-2, y] in roundedVisited
+        elif abs(dir - 90) <= 10:
+            visitedCells[0] = [x, y+2] in roundedVisited
+            visitedCells[1] = [x-2, y] in roundedVisited
+            visitedCells[2] = [x+2, y] in roundedVisited
+            visitedCells[3] = [x, y-2] in roundedVisited
+        elif abs(dir + 90) <= 10:
+            visitedCells[0] = [x, y-2] in roundedVisited
+            visitedCells[1] = [x+2, y] in roundedVisited
+            visitedCells[2] = [x-2, y] in roundedVisited
+            visitedCells[3] = [x, y+2] in roundedVisited
+        elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
+            visitedCells[0] = [x-2, y] in roundedVisited
+            visitedCells[1] = [x, y-2] in roundedVisited
+            visitedCells[2] = [x, y+2] in roundedVisited
+            visitedCells[3] = [x+2, y] in roundedVisited
+
+        # print([x, y])
+        # print(roundedVisited)
+        print(visitedCells)
+        return visitedCells
+
+
+def roundTo05(x):
+    return round(x*2)/2
 
 class Map():
     def __init__(self, filename):
@@ -230,7 +276,7 @@ for i in range(1, len(sys.argv),2):
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,90.0,-90.0,180.0],host, list(), list(), list())
+    rob=MyRob(rob_name,pos,[0.0,90.0,-90.0,180.0],host, list(), list(), list(), False)
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
@@ -242,5 +288,5 @@ if __name__ == '__main__':
 Une stack avec les positions précédentes, qui se dépile quand on reviens sur nos pas
 Une stack avec les intersections, on empile à chaque nouvelle, et on dépile quand on l'a entièrement explorée
 Une liste avec toutes les positions, pour ne pas repasser dessus
-Ajuster la direction à prendre en fonction de l'orientation du robot, pour toujours rouler droit
+A PERFECTIONNER - Ajuster la direction à prendre en fonction de l'orientation du robot, pour toujours rouler droit
 """
