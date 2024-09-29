@@ -101,7 +101,7 @@ class MyRob(CRobLinkAngs):
                 self.prevPos.pop()
 
             # print(self.goingBack)
-            print(self.prevPos[-5:])
+            # print(self.prevPos[-5:])
             
         #If we are not in a new cell, we keep going
         else:
@@ -111,20 +111,20 @@ class MyRob(CRobLinkAngs):
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         if centerSensor >= 1.3:
-            print("mur devant")
+            # print("mur devant")
             walls[0] = True
         if leftSensor >= 1.3:
-            print("mur à gauche")
+            # print("mur à gauche")
             walls[1] = True
         if rightSensor >= 1.3:
-            print("mur à droite")
+            # print("mur à droite")
             walls[2] = True
         if backSensor >= 1.3:
-            print("mur derrière")
+            # print("mur derrière")
             walls[3] = True
 
-        if not any(walls):
-            print("pas de mur")
+        # if not any(walls):
+            # print("pas de mur")
 
         return walls
     
@@ -153,12 +153,11 @@ class MyRob(CRobLinkAngs):
 
     def chooseDirection(self, walls, dir, x, y, flag):
 
-        nextVisitedCells = [False, False, False, False]
+        nextVisitedCells = self.nextVisitedCells(dir)
         target = -1
         tmp = self.goingBack
 
         if [round(x), round(y)] in self.intersections:
-            nextVisitedCells = self.nextVisitedCells(dir)
             pop = True
             for i in range(4):
                 if not nextVisitedCells[i] and not walls[i]:
@@ -172,8 +171,8 @@ class MyRob(CRobLinkAngs):
 
         if self.goingBack:
             target = self.getDirectionTarget(dir)
-        else:
-            nextVisitedCells = self.nextVisitedCells(dir)
+            nextVisitedCells = [False, False, False, False]
+        
             
 
         if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
@@ -313,7 +312,7 @@ class MyRob(CRobLinkAngs):
             visitedCells[3] = [x+2, y] in self.visited
 
         # print([x, y])
-        # print(visitedCells)
+        print(visitedCells)
         return visitedCells
 
 
@@ -376,7 +375,12 @@ if __name__ == '__main__':
 
 
 """
-Une stack avec les positions précédentes, qui se dépile quand on reviens sur nos pas
-Une stack avec les intersections, on empile à chaque nouvelle, et on dépile quand on l'a entièrement explorée
-Une liste avec toutes les positions, pour ne pas repasser dessus
+Tâches primaires :
+    Stopper correctement le programme quand on a tout exploré
+    Quand le robot a entièrement parcouru une intersection et qu'il revient à celle d'avant, il reviens une case en arrière de trop
+    Pas stable du tout
+
+Tâches secondaires :
+    Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
+    Faire reculer le robot au lieu de le faire pivoter quand il doit faire demi-tour
 """
