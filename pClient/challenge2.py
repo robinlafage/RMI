@@ -379,6 +379,7 @@ Tâches primaires :
     Stopper correctement le programme quand on a tout exploré
     Quand le robot a entièrement parcouru une intersection et qu'il revient à celle d'avant, il reviens une case en arrière de trop
     Pas stable du tout
+    Augmenter la vitesse de déplacement du robot, et ajuster les différentes valeurs en conséquence
 
 Tâches secondaires :
     Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
