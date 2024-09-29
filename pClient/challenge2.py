@@ -92,14 +92,17 @@ class MyRob(CRobLinkAngs):
                 self.prevPos.append([x, y])
             self.visited.append([round(x), round(y)])
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
-            if self.isIntersection(walls):
-                self.intersections.append([x, y])
+            if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
+                self.intersections.append([round(x), round(y)])
 
-            self.chooseDirection(walls, dir)
+            self.chooseDirection(walls, dir, x, y, True)
 
             if self.goingBack:
                 self.prevPos.pop()
 
+            # print(self.goingBack)
+            print(self.prevPos[-5:])
+            
         #If we are not in a new cell, we keep going
         else:
             self.goForward(dir)
@@ -108,20 +111,20 @@ class MyRob(CRobLinkAngs):
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         if centerSensor >= 1.3:
-            # print("mur devant")
+            print("mur devant")
             walls[0] = True
         if leftSensor >= 1.3:
-            # print("mur à gauche")
+            print("mur à gauche")
             walls[1] = True
         if rightSensor >= 1.3:
-            # print("mur à droite")
+            print("mur à droite")
             walls[2] = True
         if backSensor >= 1.3:
-            # print("mur derrière")
+            print("mur derrière")
             walls[3] = True
 
-        # if not any(walls):
-            # print("pas de mur")
+        if not any(walls):
+            print("pas de mur")
 
         return walls
     
@@ -148,10 +151,25 @@ class MyRob(CRobLinkAngs):
             # print("Adjusting direction - turning left")
             self.driveMotors(SPEED-OFFSET, SPEED)
 
-    def chooseDirection(self, walls, dir):
+    def chooseDirection(self, walls, dir, x, y, flag):
 
         nextVisitedCells = [False, False, False, False]
         target = -1
+        tmp = self.goingBack
+
+        if [round(x), round(y)] in self.intersections:
+            nextVisitedCells = self.nextVisitedCells(dir)
+            pop = True
+            for i in range(4):
+                if not nextVisitedCells[i] and not walls[i]:
+                    pop = False
+                    break
+            if pop:
+                self.intersections.pop()
+
+        if [round(x), round(y)] in self.intersections and flag:
+            self.goingBack = False
+
         if self.goingBack:
             target = self.getDirectionTarget(dir)
         else:
@@ -187,16 +205,30 @@ class MyRob(CRobLinkAngs):
             #A TESTER
             print("turn back")
             currentDir = dir
-            while abs(dir - currentDir) <= 170:
-                # print("currentDir : ", currentDir, ", dir : ", dir, ", final : ", abs(dir - currentDir))
-                self.driveMotors(-SPEED, SPEED)
+            while True:
+                self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
                 dir = self.measures.compass
-            self.driveMotors(-SPEED, SPEED)
+                diff = dir - currentDir
+                if diff > 180:
+                    diff -= 360
+                elif diff < -180:
+                    diff += 360
+
+                if abs(diff) >= 170:
+                    break
+
+                # print("currentDir : ", currentDir, ", dir : ", dir, ", final : ", abs(diff))
+            self.driveMotors(SPEED, -SPEED)
         else:
             print("Path entirely explored, going back to the previous intersection")
+            if tmp:
+                # print("OE ON ARRIVE BIEN LA")
+                self.prevPos.pop()
+                self.prevPos.append([x, y])
             self.goingBack = True
-            self.chooseDirection(walls, dir)
+            self.prevPos.append([x, y]) 
+            self.chooseDirection(walls, dir, x, y, False)
         
         return
             
@@ -205,8 +237,8 @@ class MyRob(CRobLinkAngs):
     #0: forward, 1: left, 2: right, 3: back
     def getDirectionTarget(self, dir):
         target = -1
-        diffX = round(self.prevPos[-1][0] - self.prevPos[-2][0])
-        diffY = round(self.prevPos[-1][1] - self.prevPos[-2][1])
+        diffX = round(self.prevPos[-2][0] - self.prevPos[-3][0])
+        diffY = round(self.prevPos[-2][1] - self.prevPos[-3][1])
         if abs(dir) <= 10:
             if diffX > 0:
                 target = 3
@@ -347,5 +379,4 @@ if __name__ == '__main__':
 Une stack avec les positions précédentes, qui se dépile quand on reviens sur nos pas
 Une stack avec les intersections, on empile à chaque nouvelle, et on dépile quand on l'a entièrement explorée
 Une liste avec toutes les positions, pour ne pas repasser dessus
-A PERFECTIONNER - Ajuster la direction à prendre en fonction de l'orientation du robot, pour toujours rouler droit
 """
