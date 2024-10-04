@@ -70,7 +70,40 @@ class MyRob(CRobLinkAngs):
         right_id = 2
         back_id = 3
         
-        self.driveMotors(0.05,0.05)
+        # These statements make the robot rotate when there is a wall in front
+        if    self.measures.irSensor[center_id]  > 1.1\
+            and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
+            and self.measures.irSensor[right_id] > 1.15:
+            self.driveMotors(-0.15,+0.15)
+        elif    self.measures.irSensor[center_id]  > 1.1\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
+            and self.measures.irSensor[left_id] > 1.15:
+            self.driveMotors(+0.15,-0.15)
+
+        # Security statements, to avoid collision with a lateral wall
+        elif self.measures.irSensor[left_id]> 15.0\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
+            self.driveMotors(0.15,-0.05)
+        elif self.measures.irSensor[right_id]> 15.0\
+            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
+            self.driveMotors(-0.05,0.15)
+        
+        # Security statements, to avoid collision with a front wall
+        elif self.measures.irSensor[center_id]> 15.0\
+            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
+            self.driveMotors(0.15,-0.15)
+        elif self.measures.irSensor[center_id]> 15.0\
+            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
+            self.driveMotors(-0.15,0.15)
+
+
+        else:
+            print('Go')
+            self.driveMotors(-0.15,-0.15)
+        
+        # Save the previous distances in order to permit to make the robot go straight
+        self.previous_distances=[self.measures.irSensor[center_id],self.measures.irSensor[left_id],self.measures.irSensor[right_id],self.measures.irSensor[back_id]]
+
         print(str(self.measures.beacon))
 
         
@@ -121,7 +154,7 @@ for i in range(1, len(sys.argv),2):
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,60.0,-60.0,180.0],host, [])
+    rob=MyRob(rob_name,pos,[180.0,-120.0,120.0,0.0],host, [])
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
