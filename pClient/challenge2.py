@@ -95,9 +95,9 @@ class MyRob(CRobLinkAngs):
             if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
                 self.intersections.append([round(x), round(y)])
 
-            self.chooseDirection(walls, dir, x, y, True)
+            pop = self.chooseDirection(walls, dir, x, y, True)
 
-            if self.goingBack:
+            if self.goingBack or pop:
                 self.prevPos.pop()
 
             # print(self.goingBack)
@@ -152,6 +152,10 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(SPEED-OFFSET, SPEED)
 
     def chooseDirection(self, walls, dir, x, y, flag):
+        if self.goingBack:
+            pop2 = True
+        else:
+            pop2 = False
 
         nextVisitedCells = self.nextVisitedCells(dir)
         target = -1
@@ -228,7 +232,7 @@ class MyRob(CRobLinkAngs):
             self.prevPos.append([x, y]) 
             self.chooseDirection(walls, dir, x, y, False)
         
-        return
+        return pop2
             
     
     #Return the direction to take to go back to the previous intersection
@@ -376,7 +380,6 @@ if __name__ == '__main__':
 """
 Tâches primaires :
     Stopper correctement le programme quand on a tout exploré
-    Quand le robot a entièrement parcouru une intersection et qu'il revient à celle d'avant, il reviens une case en arrière de trop
     Pas stable du tout
     Augmenter la vitesse de déplacement du robot, et ajuster les différentes valeurs en conséquence
     Ecrire la map dans le fichier
