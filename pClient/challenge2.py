@@ -110,16 +110,16 @@ class MyRob(CRobLinkAngs):
 
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
-        if centerSensor >= 1.3:
+        if centerSensor >= 1.0:
             # print("mur devant")
             walls[0] = True
-        if leftSensor >= 1.3:
+        if leftSensor >= 1.0:
             # print("mur à gauche")
             walls[1] = True
-        if rightSensor >= 1.3:
+        if rightSensor >= 1.0:
             # print("mur à droite")
             walls[2] = True
-        if backSensor >= 1.3:
+        if backSensor >= 1.0:
             # print("mur derrière")
             walls[3] = True
 
@@ -222,7 +222,6 @@ class MyRob(CRobLinkAngs):
         else:
             print("Path entirely explored, going back to the previous intersection")
             if tmp:
-                # print("OE ON ARRIVE BIEN LA")
                 self.prevPos.pop()
                 self.prevPos.append([x, y])
             self.goingBack = True
