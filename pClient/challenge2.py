@@ -3,19 +3,24 @@ import sys
 from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
+import time
 
 CELLROWS=7
 CELLCOLS=14
-SPEED = 0.1
-OFFSET = 0.04
+SPEED = 0.15
+OFFSET = 0.06
+ROTATION_DEG = 65
+NEW_CELL_THRESHOLD = 0.0
+SENSOR_THRESHOLD = 1.2
 
 class MyRob(CRobLinkAngs):
-    def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited, goingBack):
+    def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
         self.prevPos = prevPos
         self.intersections = intersections
         self.visited = visited
         self.goingBack = False
+        self.hasTurned = False
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -80,18 +85,21 @@ class MyRob(CRobLinkAngs):
         rightSensor = self.measures.irSensor[right_id]
         backSensor = self.measures.irSensor[back_id]
 
-        x = self.measures.x
-        y = self.measures.y
+        x = roundTo05(self.measures.x)
+        y = roundTo05(self.measures.y)
         dir = self.measures.compass
         
         #We arrive in a new cell
-        if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= 0.1 or abs(y - self.prevPos[-1][1]+2) <= 0.1 or abs(x - self.prevPos[-1][0]-2) <= 0.1 or abs(y - self.prevPos[-1][1]-2) <= 0.1:
+        if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
             print()
-            print("New cell")
+            print("-----------------------------")
+            print("New cell\n")
+
             if not self.goingBack:
                 self.prevPos.append([x, y])
             self.visited.append([round(x), round(y)])
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+            print()
             if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
                 self.intersections.append([round(x), round(y)])
 
@@ -101,8 +109,12 @@ class MyRob(CRobLinkAngs):
                 self.prevPos.pop()
 
             # print(self.goingBack)
-            # print(self.prevPos[-5:])
+            # print(self.prevPos)
             
+            if self.hasTurned:
+                self.driveMotors(0.0, 0.0)
+            # time.sleep(1)
+
         #If we are not in a new cell, we keep going
         else:
             self.goForward(dir)
@@ -110,21 +122,22 @@ class MyRob(CRobLinkAngs):
 
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
-        if centerSensor >= 1.0:
-            # print("mur devant")
+        print("centerSensor: ", centerSensor, ", leftSensor: ", leftSensor, ", rightSensor: ", rightSensor, ", backSensor: ", backSensor)
+        if centerSensor >= 1.1:
+            print("mur devant")
             walls[0] = True
-        if leftSensor >= 1.0:
-            # print("mur à gauche")
+        if leftSensor >= SENSOR_THRESHOLD:
+            print("mur à gauche")
             walls[1] = True
-        if rightSensor >= 1.0:
-            # print("mur à droite")
+        if rightSensor >= SENSOR_THRESHOLD:
+            print("mur à droite")
             walls[2] = True
-        if backSensor >= 1.0:
-            # print("mur derrière")
+        if backSensor >= SENSOR_THRESHOLD:
+            print("mur derrière")
             walls[3] = True
 
-        # if not any(walls):
-            # print("pas de mur")
+        if not any(walls):
+            print("pas de mur")
 
         return walls
     
@@ -134,7 +147,6 @@ class MyRob(CRobLinkAngs):
     
     def goForward(self, dir):
         #If we are not deviating from the direction, we keep going
-        # Un degré de tolérance, surement a supprimer #if (dir >= -1 and dir <= 1) or (dir >= 89 and dir <= 91) or (dir >= 179 and dir <= 180) or (dir <= -180 and dir >= -181) or (dir >= -91 and dir <= -89):
         if dir == 0 or dir == 90 or dir == -90 or dir == 180 or dir == -180:
             self.driveMotors(SPEED, SPEED)
             return
@@ -181,25 +193,28 @@ class MyRob(CRobLinkAngs):
 
         if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
             print("go forward")
+            self.hasTurned = False
             self.driveMotors(SPEED, SPEED)
         elif (not walls[1] and not nextVisitedCells[1] and target == -1) or target == 1:
             print("turn left")
+            self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is positive
             if dir <= 180 and dir >= 170:
                 dir = -180
             currentDir = dir
-            while dir <= currentDir + 65: #à modifier en fonction de la vitesse de déplacement du robot
+            while dir <= currentDir + ROTATION_DEG: #à modifier en fonction de la vitesse de déplacement du robot
                 self.driveMotors(-SPEED, SPEED)
                 self.readSensors()
                 dir = self.measures.compass
             self.driveMotors(-SPEED, SPEED)
         elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
             print("turn right")
+            self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is degative
             if dir >= -180 and dir <= -170:
                 dir = 180
             currentDir = dir
-            while dir >= currentDir - 65:
+            while dir >= currentDir - ROTATION_DEG:
                 self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
                 dir = self.measures.compass
@@ -207,6 +222,7 @@ class MyRob(CRobLinkAngs):
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
             #A TESTER
             print("turn back")
+            self.hasTurned = True
             currentDir = dir
             while True:
                 self.driveMotors(SPEED, -SPEED)
@@ -218,7 +234,7 @@ class MyRob(CRobLinkAngs):
                 elif diff < -180:
                     diff += 360
 
-                if abs(diff) >= 170:
+                if abs(diff) >= 160:
                     break
 
                 # print("currentDir : ", currentDir, ", dir : ", dir, ", final : ", abs(diff))
@@ -316,6 +332,7 @@ class MyRob(CRobLinkAngs):
 
         # print([x, y])
         print(visitedCells)
+        print()
         return visitedCells
 
 
@@ -369,7 +386,7 @@ for i in range(1, len(sys.argv),2):
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,90.0,-90.0,180.0],host, list(), list(), list(), False)
+    rob=MyRob(rob_name,pos,[0.0,85.0,-85.0,180.0],host, list(), list(), list())
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
@@ -381,7 +398,7 @@ if __name__ == '__main__':
 Tâches primaires :
     Stopper correctement le programme quand on a tout exploré
     Pas stable du tout
-    Augmenter la vitesse de déplacement du robot, et ajuster les différentes valeurs en conséquence
+        Il voit pas certains murs
     Ecrire la map dans le fichier
 
 Tâches secondaires :

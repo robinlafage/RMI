@@ -1,32 +1,55 @@
-cmake_minimum_required(VERSION 3.5)
-project(ciberRatoTools)
-
-# Compile in Release by default
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to 'Release' as none was specified.")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
-
-
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
+# This file assumes there is a environment variable called "TOOLSDIR", which value 
+#    is the absolute path to the ciberRato tools base directory
+# Before running build.sh, execute: 
+#    export TOOLSDIR="/home/$USER/folders/ciberRatoTools"
+#      replace "folders" by the path to ciberRatoTools in your setup
 
 find_package(Qt5 COMPONENTS Widgets Multimedia Network Xml REQUIRED)
 
-# Global macros that define TRUE and FALSE
-# Should TRUE and FALSE exist??
-add_compile_options(-DTRUE=1 -DFALSE=0)
+add_library(RobSock SHARED IMPORTED) # or STATIC instead of SHARED
+set_target_properties(RobSock PROPERTIES
+  IMPORTED_LOCATION "$ENV{TOOLSDIR}/build/libRobSock/libRobSock.so"
+  INTERFACE_INCLUDE_DIRECTORIES "$ENV{TOOLSDIR}/libRobSock"
+)
 
-add_subdirectory(simulator)
-add_subdirectory(Viewer)
-add_subdirectory(libRobSock)
-add_subdirectory(logplayer)
-add_subdirectory(robsample)
-add_subdirectory(GUISample)
+set(c1_SRC
+    #Source
+    robC1.c
+    robfunc.c
+)
+
+add_executable(robC1 ${c1_SRC})
+
+target_include_directories(robC1 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(robC1 RobSock Qt5::Xml Qt5::Widgets)
+
+set_target_properties(robC1 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+
+set(c2_SRC
+    #Source
+    robC2.c
+    robfunc.c
+)
+
+add_executable(robC2 ${c2_SRC})
+
+target_include_directories(robC2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(robC2 RobSock Qt5::Xml Qt5::Widgets)
+
+set_target_properties(robC2 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+
+set(c3_SRC
+    #Source
+    robC3.c
+    robfunc.c
+)
+
+add_executable(robC3 ${c3_SRC})
+
+target_include_directories(robC3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(robC3 RobSock Qt5::Xml Qt5::Widgets)
+
+set_target_properties(robC3 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
