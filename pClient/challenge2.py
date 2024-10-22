@@ -539,10 +539,10 @@ if __name__ == '__main__':
 
 """
 Tâches primaires :
-    Stopper correctement le programme quand on a tout exploré
-        Gérer le cas où il reste du labirynthe derrière le point de départ
-    Pas très stable mais ça va
-        Il voit pas certains murs
+    Stabiliser le programme au maximum (détéction des murs)
+    Commenter le code
+    Simplifier certaines parties du code
+
 
 Tâches secondaires :
     Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
