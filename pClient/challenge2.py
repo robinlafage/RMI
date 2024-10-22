@@ -4,6 +4,7 @@ from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
 import time
+import os
 
 CELLROWS=7
 CELLCOLS=14
@@ -11,7 +12,7 @@ SPEED = 0.15
 OFFSET = 0.06
 ROTATION_DEG = 65
 NEW_CELL_THRESHOLD = 0.0
-SENSOR_THRESHOLD = 1.2
+SENSOR_THRESHOLD = 1.1
 
 class MyRob(CRobLinkAngs):
     def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited):
@@ -136,9 +137,19 @@ class MyRob(CRobLinkAngs):
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         print("centerSensor: ", centerSensor, ", leftSensor: ", leftSensor, ", rightSensor: ", rightSensor, ", backSensor: ", backSensor)
-        if centerSensor >= 1.0:
+        if centerSensor >= SENSOR_THRESHOLD:
             print("mur devant")
             walls[0] = True
+        elif centerSensor >= 0.8 and centerSensor < SENSOR_THRESHOLD:
+            print("\033[91m" + "BELEK ON SAIT PAS TROP LA")
+            self.driveMotors(SPEED, SPEED)
+            time.sleep(0.015)
+            self.readSensors()
+            centerSensor = self.measures.irSensor[0]
+            print("centerSensor: ", centerSensor, "\033[0m")
+            if centerSensor >= 1.1:
+                print("mur devant")
+                walls[0] = True
         if leftSensor >= SENSOR_THRESHOLD:
             print("mur à gauche")
             walls[1] = True
@@ -476,8 +487,10 @@ class MyRob(CRobLinkAngs):
         self.outputFile.seek(position)
         self.outputFile.write("I")
         self.outputFile.close()
-
         self.finish()
+        print("\033[91m")
+        os.system("gawk -f ../simulator/mapping_score.awk ../simulator/mapping.out map.map")
+        print("\033[0m")
 
 def roundTo05(x):
     return round(x*2)/2
@@ -542,6 +555,7 @@ Tâches primaires :
     Stabiliser le programme au maximum (détéction des murs)
     Commenter le code
     Simplifier certaines parties du code
+    Enlever les print de debug
 
 
 Tâches secondaires :
