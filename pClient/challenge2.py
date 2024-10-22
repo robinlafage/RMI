@@ -21,6 +21,7 @@ class MyRob(CRobLinkAngs):
         self.visited = visited
         self.goingBack = False
         self.hasTurned = False
+        self.outputFile = open("map.map", "w")
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -38,6 +39,8 @@ class MyRob(CRobLinkAngs):
 
         state = 'stop'
         stopped_state = 'run'
+
+        self.initMap()
 
         while True:
             self.readSensors()
@@ -90,40 +93,50 @@ class MyRob(CRobLinkAngs):
         dir = self.measures.compass
         
         #We arrive in a new cell
-        if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
-            print()
-            print("-----------------------------")
-            print("New cell\n")
+        try:
+            if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
+                print()
+                print("-----------------------------")
+                print("New cell\n")
+                if not self.goingBack:
+                    self.prevPos.append([x, y])
+                self.visited.append([round(x), round(y)])
+                walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+                self.writeMap(walls, dir)
+                print()
+                if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
+                    self.intersections.append([round(x), round(y)])
 
-            if not self.goingBack:
-                self.prevPos.append([x, y])
-            self.visited.append([round(x), round(y)])
+                pop = self.chooseDirection(walls, dir, x, y, True)
+
+                if self.goingBack or pop:
+                    self.prevPos.pop()
+
+                # print(self.goingBack)
+                # print(self.prevPos)
+                
+                if self.hasTurned:
+                    self.driveMotors(0.0, 0.0)
+                # time.sleep(1)
+
+            #If we are not in a new cell, we keep going
+            else:
+                self.goForward(dir)
+        except:
+            self.goingBack = False
+            nextVisitedCells = self.nextVisitedCells(dir)
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
-            print()
-            if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
-                self.intersections.append([round(x), round(y)])
-
-            pop = self.chooseDirection(walls, dir, x, y, True)
-
-            if self.goingBack or pop:
-                self.prevPos.pop()
-
-            # print(self.goingBack)
-            # print(self.prevPos)
-            
-            if self.hasTurned:
-                self.driveMotors(0.0, 0.0)
-            # time.sleep(1)
-
-        #If we are not in a new cell, we keep going
-        else:
-            self.goForward(dir)
+            if (not walls[0] and not nextVisitedCells[0]) or (not walls[1] and not nextVisitedCells[1]) or (not walls[2] and not nextVisitedCells[2]) or (not walls[3] and not nextVisitedCells[3]):
+                self.prevPos.append([x, y])
+                self.wander()
+            else:
+                self.endChallenge()
 
 
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         print("centerSensor: ", centerSensor, ", leftSensor: ", leftSensor, ", rightSensor: ", rightSensor, ", backSensor: ", backSensor)
-        if centerSensor >= 1.1:
+        if centerSensor >= 1.0:
             print("mur devant")
             walls[0] = True
         if leftSensor >= SENSOR_THRESHOLD:
@@ -336,6 +349,136 @@ class MyRob(CRobLinkAngs):
         return visitedCells
 
 
+    def initMap(self):
+        for _ in range(27):
+            self.outputFile.write(" " * 55 + "\n")
+
+        position = (13 * (55 + 1)) + 27
+        self.outputFile.seek(position)
+        self.outputFile.write("I")
+        self.outputFile.seek(position)
+    
+    def writeMap(self, walls, dir):
+        currentPos = self.outputFile.tell()
+
+        try:
+            x1 = self.visited[-1][0]
+            y1 = self.visited[-1][1]
+            x2 = self.visited[-2][0]
+            y2 = self.visited[-2][1]
+
+            if x1 == x2 + 2:
+                self.outputFile.seek(currentPos + 2)
+            elif x1 == x2 - 2:
+                self.outputFile.seek(currentPos - 2)
+            elif y1 == y2 + 2:
+                self.outputFile.seek(currentPos - 56*2)
+            elif y1 == y2 - 2:
+                self.outputFile.seek(currentPos + 56*2)
+
+            currentPos = self.outputFile.tell()
+            self.outputFile.write("X")
+        except:
+            pass
+
+        if dir >= -10 and dir <= 10:
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+
+        elif dir >= 80 and dir <= 100:
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir <= -80 and dir >= -100:
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir >= 170 or dir <= -170:
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+        else:
+            print("\033[91m" + "INVALID DIRECTION" + "\033[0m")
+
+
+        self.outputFile.seek(currentPos)
+
+
+    def endChallenge(self):
+        position = (13 * (55 + 1)) + 27
+        self.outputFile.seek(position)
+        self.outputFile.write("I")
+        self.outputFile.close()
+
+        self.finish()
+
 def roundTo05(x):
     return round(x*2)/2
 
@@ -397,9 +540,9 @@ if __name__ == '__main__':
 """
 Tâches primaires :
     Stopper correctement le programme quand on a tout exploré
-    Pas stable du tout
+        Gérer le cas où il reste du labirynthe derrière le point de départ
+    Pas très stable mais ça va
         Il voit pas certains murs
-    Ecrire la map dans le fichier
 
 Tâches secondaires :
     Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
