@@ -113,9 +113,7 @@ class MyRob(CRobLinkAngs):
                 if self.goingBack or pop:
                     self.prevPos.pop()
 
-                # print(self.goingBack)
-                # print(self.prevPos)
-                
+                # If the robot has turned, we stop the motors just one time to keep the right direction 
                 if self.hasTurned:
                     self.driveMotors(0.0, 0.0)
                 # time.sleep(1)
@@ -124,22 +122,28 @@ class MyRob(CRobLinkAngs):
             else:
                 self.goForward(dir)
         except:
+            # The robot arrive in the starting cell
             self.goingBack = False
             nextVisitedCells = self.nextVisitedCells(dir)
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+            # If parts of the lab are not explored, we keep going
             if (not walls[0] and not nextVisitedCells[0]) or (not walls[1] and not nextVisitedCells[1]) or (not walls[2] and not nextVisitedCells[2]) or (not walls[3] and not nextVisitedCells[3]):
                 self.prevPos.append([x, y])
                 self.wander()
+            # Else, we can stop the challenge
             else:
                 self.endChallenge()
 
 
+    # Return the walls detected by the sensors
+    # The list is ordered as follows: [front, left, right, back]
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         print("centerSensor: ", centerSensor, ", leftSensor: ", leftSensor, ", rightSensor: ", rightSensor, ", backSensor: ", backSensor)
         if centerSensor >= SENSOR_THRESHOLD:
             print("mur devant")
             walls[0] = True
+        # If we are not sure there is a wall in front of us, we keep going and check again
         elif centerSensor >= 0.8 and centerSensor < SENSOR_THRESHOLD:
             print("\033[91m" + "BELEK ON SAIT PAS TROP LA")
             self.driveMotors(SPEED, SPEED)
@@ -178,15 +182,12 @@ class MyRob(CRobLinkAngs):
         #Else, we adjust the direction
 
         if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
-            #Turn slowly right
-            # print("Adjusting direction - turning right")
             self.driveMotors(SPEED, SPEED-OFFSET)
 
         elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
-            #Turn slowly left
-            # print("Adjusting direction - turning left")
             self.driveMotors(SPEED-OFFSET, SPEED)
 
+    # At each cell, choose the right direction to take, and start going in that direction
     def chooseDirection(self, walls, dir, x, y, flag):
         if self.goingBack:
             pop2 = True
@@ -226,7 +227,7 @@ class MyRob(CRobLinkAngs):
             if dir <= 180 and dir >= 170:
                 dir = -180
             currentDir = dir
-            while dir <= currentDir + ROTATION_DEG: #à modifier en fonction de la vitesse de déplacement du robot
+            while dir <= currentDir + ROTATION_DEG:
                 self.driveMotors(-SPEED, SPEED)
                 self.readSensors()
                 dir = self.measures.compass
@@ -244,7 +245,6 @@ class MyRob(CRobLinkAngs):
                 dir = self.measures.compass
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
-            #A TESTER
             print("turn back")
             self.hasTurned = True
             currentDir = dir
@@ -261,7 +261,6 @@ class MyRob(CRobLinkAngs):
                 if abs(diff) >= 160:
                     break
 
-                # print("currentDir : ", currentDir, ", dir : ", dir, ", final : ", abs(diff))
             self.driveMotors(SPEED, -SPEED)
         else:
             print("Path entirely explored, going back to the previous intersection")
@@ -325,13 +324,8 @@ class MyRob(CRobLinkAngs):
     #The list is ordered as follows: [forward, left, right, back], from the point of view of the robot
     def nextVisitedCells(self, dir):
         visitedCells = [False, False, False, False]
-        # x = round(self.visited[-1][0])
-        # y = round(self.visited[-1][1])
-
         x = self.visited[-1][0]
         y = self.visited[-1][1]
-
-        # roundedVisited = [[round(nb) for nb in subList] for subList in self.visited]
 
         if abs(dir) <= 10:
             visitedCells[0] = [x+2, y] in self.visited
@@ -354,12 +348,12 @@ class MyRob(CRobLinkAngs):
             visitedCells[2] = [x, y+2] in self.visited
             visitedCells[3] = [x+2, y] in self.visited
 
-        # print([x, y])
         print(visitedCells)
         print()
         return visitedCells
 
 
+    # Initialize the map with empty cells and starting position
     def initMap(self):
         for _ in range(27):
             self.outputFile.write(" " * 55 + "\n")
@@ -369,6 +363,7 @@ class MyRob(CRobLinkAngs):
         self.outputFile.write("I")
         self.outputFile.seek(position)
     
+    # Write the map in the file
     def writeMap(self, walls, dir):
         currentPos = self.outputFile.tell()
 
@@ -481,7 +476,7 @@ class MyRob(CRobLinkAngs):
 
         self.outputFile.seek(currentPos)
 
-
+    # End the challenge by closing the output file, printing the score, rewrite the starting position if needed and exit
     def endChallenge(self):
         position = (13 * (55 + 1)) + 27
         self.outputFile.seek(position)
@@ -492,6 +487,7 @@ class MyRob(CRobLinkAngs):
         os.system("gawk -f ../simulator/mapping_score.awk ../simulator/mapping.out map.map")
         print("\033[0m")
 
+# Round a number to the nearest 0.5
 def roundTo05(x):
     return round(x*2)/2
 
@@ -553,6 +549,7 @@ if __name__ == '__main__':
 """
 Tâches primaires :
     Stabiliser le programme au maximum (détéction des murs)
+        Pour le moment, environ 14% de mauvaises décisions
     Commenter le code
     Simplifier certaines parties du code
     Enlever les print de debug
