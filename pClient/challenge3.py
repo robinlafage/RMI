@@ -118,10 +118,14 @@ class MyRob(CRobLinkAngs):
             if ((abs(roundedPositions[0] - self.prevPos[0]) >= NEW_CELL_THRESHOLD)  or (abs(roundedPositions[1] - self.prevPos[1]) >= NEW_CELL_THRESHOLD)) :
                 self.prevPos = roundedPositions
             self.followThePath(self.measures.compass)
-            if self.followingPath == False :
-                #Check if there is any unvisited ways in this position
-                walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
-                self.chooseDirection(walls, dir, roundedPositions[0], roundedPositions[1], True)
+
+            walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+            nextVisitedCells = self.nextVisitedCells(dir)
+            finishedIntersection = self.allVisitedHere(walls, nextVisitedCells)
+            if finishedIntersection and (roundedPositions[0], roundedPositions[1]) in self.intersections :
+                self.intersections.remove((roundedPositions[0], roundedPositions[1]))
+            elif self.isIntersection(walls) and (roundedPositions[0],roundedPositions[1]) not in self.intersections and not finishedIntersection:
+                self.intersections.append((roundedPositions[0],roundedPositions[1]))
                 
         
         # #Visiting a new cell
@@ -136,7 +140,6 @@ class MyRob(CRobLinkAngs):
 
             #Adding an edge to the graph
             if (self.prevPos[0],self.prevPos[1]) not in self.graph.get_adjacent_nodes((roundedPositions[0],roundedPositions[1])) :
-                print(f"\n\nActual pos : {roundedPositions}, prevPos : {self.prevPos}")
                 self.graph.add_edge((self.prevPos[0],self.prevPos[1]), (roundedPositions[0],roundedPositions[1]), 1)
                 self.graph.add_edge((roundedPositions[0],roundedPositions[1]), (self.prevPos[0],self.prevPos[1]), 1)
             
@@ -144,26 +147,14 @@ class MyRob(CRobLinkAngs):
             self.prevPos = roundedPositions
             walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
             nextVisitedCells = self.nextVisitedCells(dir)
-            append = False
-            print(nextVisitedCells)
-            print(self.isIntersection(walls))
-            #TODO Traiter autrement pour que les murs rentrent en compte en tant que point bloquant
-            for i in nextVisitedCells :
-                if not i :
-                    append = True
-                    break
-            if not append and (roundedPositions[0], roundedPositions[1]) in self.intersections :
-                print(f"\n\nLa on remove, état de intersections : {self.intersections}")
+            finishedIntersection = self.allVisitedHere(walls, nextVisitedCells)
+            if finishedIntersection and (roundedPositions[0], roundedPositions[1]) in self.intersections :
                 self.intersections.remove((roundedPositions[0], roundedPositions[1]))
-            elif self.isIntersection(walls) and roundedPositions not in self.intersections and append:
+            elif self.isIntersection(walls) and (roundedPositions[0],roundedPositions[1]) not in self.intersections and not finishedIntersection:
                 self.intersections.append((roundedPositions[0],roundedPositions[1]))
-                print(f"\n\nLa on append, état de intersections : {self.intersections}")
 
             
-            pop = self.chooseDirection(walls, dir, roundedPositions[0], roundedPositions[1], True)
-
-            if self.goingBack or pop:
-                self.previousPositions.pop()
+            self.chooseDirection(walls, dir, roundedPositions[0], roundedPositions[1])
 
             # If the robot has turned, we stop the motors just one time to keep the right direction 
             if self.hasTurned:
@@ -340,19 +331,60 @@ class MyRob(CRobLinkAngs):
         print()
         return visitedCells
     
+    #TODO Make this function viable
     def turnToDirectionTarget(self, idealDirection):
         direction = self.measures.compass
-        idealDirection2 = 0
-        if idealDirection == 180 :
-            idealDirection2 = -180
-        while not ((direction <= idealDirection+3 and direction >= idealDirection-3) or ((idealDirection2 == -180 or idealDirection2 == -90) and direction <= idealDirection2+3 and direction >= idealDirection2-3)) :
-            self.driveMotors(-0.05,0.05)
-            self.readSensors()
-            direction = self.measures.compass
-            if direction <= -160 and direction >= -200 :
-                direction = 360 + direction
-            self.hasTurned = True
+        # idealDirection2 = 0
+        # if idealDirection == 180 :
+        #     idealDirection2 = -180
+        # while not ((direction <= idealDirection+3 and direction >= idealDirection-3) or ((idealDirection2 == -180 or idealDirection2 == -90) and direction <= idealDirection2+3 and direction >= idealDirection2-3)) :
+        #     self.driveMotors(-0.05,0.05)
+        #     self.readSensors()
+        #     direction = self.measures.compass
+        #     if direction <= -160 and direction >= -200 :
+        #         direction = 360 + direction
+        #     self.hasTurned = True
         
+        
+        if idealDirection == 0 :
+            while direction <= -3 or direction >= 3 :
+                if direction >= -180 and direction <= 0 :
+                    self.driveMotors(-0.05,0.05)
+                else :
+                    self.driveMotors(0.05,-0.05)
+                self.readSensors()
+                direction = self.measures.compass
+                print(direction)
+        if idealDirection == 90 :
+            while direction <= 87 or direction >= 93 :
+                if direction >= -90 and direction <= 90 :
+                    self.driveMotors(-0.15,0.15)
+                else :
+                    self.driveMotors(0.15,-0.15)
+                self.readSensors()
+                direction = self.measures.compass
+                print(direction)
+        if idealDirection == 180 :
+            while (direction <= 177 and direction > 0) or (direction >= -177 and direction < 0):
+                if direction >= 0 and direction <= 180 :
+                    self.driveMotors(-0.15,0.15)
+                else :
+                    self.driveMotors(0.15,-0.15)
+                self.readSensors()
+                direction = self.measures.compass
+                print(direction)
+        if idealDirection == -90 :
+            while direction <= -93 or direction >= -87 :
+                if (direction >= 90 and direction <= 180) or (direction <= -90 and direction >= -180) :
+                    self.driveMotors(-0.15,0.15)
+                else :
+                    self.driveMotors(0.15,-0.15)
+                self.readSensors()
+                direction = self.measures.compass
+                print(direction)
+        self.hasTurned = True
+
+
         self.driveMotors(0.0, 0.0)
         
         
@@ -361,35 +393,19 @@ class MyRob(CRobLinkAngs):
     
     #TODO : Adapt this function
     # At each cell, choose the right direction to take, and start going in that direction
-    def chooseDirection(self, walls, dir, x, y, flag):
+    def chooseDirection(self, walls, dir, x, y):
         if self.goingBack:
             pop2 = True
         else:
             pop2 = False
 
         nextVisitedCells = self.nextVisitedCells(dir)
-        target = -1
-        tmp = self.goingBack
 
-        if (x,y) in self.intersections:
-            pop = True
-            for i in range(4):
-                if not nextVisitedCells[i] and not walls[i]:
-                    pop = False
-                    break
-            if pop:
-                print("Ca pop un max")
-                print(self.intersections.pop())
-
-        if (x,y) in self.intersections and flag:
-            self.goingBack = False        
-            
-
-        if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
+        if (not walls[0] and not nextVisitedCells[0]):
             print("go forward")
             self.hasTurned = False
             self.driveMotors(SPEED, SPEED)
-        elif (not walls[1] and not nextVisitedCells[1] and target == -1) or target == 1:
+        elif (not walls[1] and not nextVisitedCells[1]):
             print("turn left")
             self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is positive
@@ -401,7 +417,7 @@ class MyRob(CRobLinkAngs):
                 self.readSensors()
                 dir = self.measures.compass
             self.driveMotors(-SPEED, SPEED)
-        elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
+        elif (not walls[2] and not nextVisitedCells[2]):
             print("turn right")
             self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is degative
@@ -428,6 +444,14 @@ class MyRob(CRobLinkAngs):
     #Return True if the current cell is an intersection, i.e if there is more than one way to go, except the way we came from
     def isIntersection(self, walls):
         return walls[:-1].count(False) > 1
+
+    def allVisitedHere(self, walls, nextVisitedCells):
+        result = True
+        for index, booleen in enumerate(nextVisitedCells) :
+            if booleen == False :
+                if walls[index] == False :
+                    result = False
+        return result
 
     
     def followThePath(self, dir):
