@@ -673,7 +673,7 @@ class MyRob(CRobLinkAngs):
             if index != 0 :
                 stringToWrite = stringToWrite + "\n"
             stringToWrite = stringToWrite + f"{position[0]} {position[1]}"
-        with open("planning.txt","w") as file :
+        with open("planning.path","w") as file :
             file.write(stringToWrite)
             file.close
         self.finish()
