@@ -3,36 +3,34 @@ import sys
 from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
-import time 
-#TODO In script, install this lib using pip install dijkstra 
+import time
+import os
 import dijkstra as dijkstraLib
 
 CELLROWS=7
 CELLCOLS=14
 SPEED = 0.15
-OFFSET = 0.04
-NEW_CELL_THRESHOLD = 2.0
-SENSOR_THRESHOLD = 1.1
+OFFSET = 0.06
 ROTATION_DEG = 65
-
+NEW_CELL_THRESHOLD = 0.0
+SENSOR_THRESHOLD = 1.1
 
 class MyRob(CRobLinkAngs):
-    def __init__(self, rob_name, rob_id, angles, host):
+    def __init__(self, rob_name, rob_id, angles, host, prevPos, intersections, visited):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
         self.graph = dijkstraLib.Graph()
-        self.prevPos = []
-        self.beacons_positions   = {}
-        self.intersections       = []
-        self.start_positions     = []
-        self.visiting_beacon     = []
-        self.notFinishedVisiting = []
-        self.previousPositions    = []
-        self.visited = []
-        self.path = []
+        self.prevPos = prevPos
+        self.intersections = intersections
+        self.visited = visited
+        self.visited2 = []
         self.goingBack = False
         self.hasTurned = False
-        self.followingPath = False
-
+        self.beacons_positions   = {}
+        self.visiting_beacon     = []
+        self.start_positions     = []
+        self.path = []
+        self.hasAllBeacons = False
+        self.outputFile = open("map.map", "w")
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -50,6 +48,8 @@ class MyRob(CRobLinkAngs):
 
         state = 'stop'
         stopped_state = 'run'
+
+        self.initMap()
 
         while True:
             self.readSensors()
@@ -103,88 +103,180 @@ class MyRob(CRobLinkAngs):
                     self.visiting_beacon[index] = False
 
         self.beaconsManagement()
-        #We need to set these 2 variables after the call to beaconsManagement because otherwise self.start_positions would not be set
-        x = self.measures.x - self.start_positions[0]
-        y = self.measures.y - self.start_positions[1]
-        roundedPositions = self.roundPositions([x,y])
 
-        if self.previousPositions == []:
-            self.previousPositions.append(roundedPositions)
-            self.prevPos = roundedPositions
-            
+        x = roundTo05(self.measures.x)
+        y = roundTo05(self.measures.y)
+        x2 = self.measures.x - self.start_positions[0]
+        y2 = self.measures.y - self.start_positions[1]
+        roundedPositions = self.roundPositions([x2,y2])
         dir = self.measures.compass
         
-        if self.followingPath == True : 
-            if ((abs(roundedPositions[0] - self.prevPos[0]) >= NEW_CELL_THRESHOLD)  or (abs(roundedPositions[1] - self.prevPos[1]) >= NEW_CELL_THRESHOLD)) :
-                self.prevPos = roundedPositions
-            self.followThePath(self.measures.compass)
-
-            walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
-            nextVisitedCells = self.nextVisitedCells(dir)
-            finishedIntersection = self.allVisitedHere(walls, nextVisitedCells)
-            if finishedIntersection and (roundedPositions[0], roundedPositions[1]) in self.intersections :
-                self.intersections.remove((roundedPositions[0], roundedPositions[1]))
-            elif self.isIntersection(walls) and (roundedPositions[0],roundedPositions[1]) not in self.intersections and not finishedIntersection:
-                self.intersections.append((roundedPositions[0],roundedPositions[1]))
+        #We arrive in a new cell
+        try:
+            if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
                 
-        
-        # #Visiting a new cell
-        elif ((abs(x - self.prevPos[0]) >= NEW_CELL_THRESHOLD)  or (abs(y - self.prevPos[1]) >= NEW_CELL_THRESHOLD)) :
-            
-            #If the position is not already in the list of visited positions, we add it
-            if (not roundedPositions in self.previousPositions) :
-                print(f"\n\nNEW CELL\nposition : {roundedPositions}")
-                self.previousPositions.append(roundedPositions) 
-            if roundedPositions not in self.visited :
-                self.visited.append(roundedPositions)
+                if not self.goingBack:
+                    self.prevPos.append([x, y])
+                self.visited.append([round(x), round(y)])
+                self.visited2.append(roundedPositions)
 
-            #Adding an edge to the graph
-            if (self.prevPos[0],self.prevPos[1]) not in self.graph.get_adjacent_nodes((roundedPositions[0],roundedPositions[1])) :
-                self.graph.add_edge((self.prevPos[0],self.prevPos[1]), (roundedPositions[0],roundedPositions[1]), 1)
-                self.graph.add_edge((roundedPositions[0],roundedPositions[1]), (self.prevPos[0],self.prevPos[1]), 1)
-            
-            #Updating the value of prevPos
-            self.prevPos = roundedPositions
-            walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+                walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+                
+                self.addToGraph(walls,dir,roundedPositions[0],roundedPositions[1])
+                
+                if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
+                    self.intersections.append([round(x), round(y)])
+
+                pop = self.chooseDirection(walls, dir, x, y, True)
+
+                if self.goingBack or pop:
+                    self.prevPos.pop()
+
+                # If the robot has turned, we stop the motors just one time to keep the right direction 
+                if self.hasTurned:
+                    self.driveMotors(0.0, 0.0)
+                # time.sleep(1)
+
+            #If we are not in a new cell, we keep going
+            else:
+                self.goForward(dir)
+        except:
+            # The robot arrive in the starting cell
+            self.goingBack = False
             nextVisitedCells = self.nextVisitedCells(dir)
-            finishedIntersection = self.allVisitedHere(walls, nextVisitedCells)
-            if finishedIntersection and (roundedPositions[0], roundedPositions[1]) in self.intersections :
-                self.intersections.remove((roundedPositions[0], roundedPositions[1]))
-            elif self.isIntersection(walls) and (roundedPositions[0],roundedPositions[1]) not in self.intersections and not finishedIntersection:
-                self.intersections.append((roundedPositions[0],roundedPositions[1]))
+            walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+            # If parts of the lab are not explored, we keep going
+            if (not walls[0] and not nextVisitedCells[0]) or (not walls[1] and not nextVisitedCells[1]) or (not walls[2] and not nextVisitedCells[2]) or (not walls[3] and not nextVisitedCells[3]):
+                self.prevPos.append([x, y])
+                self.wander()
+            # Else, we can stop the challenge
+            else:
+                #Convert dict to list :
+                listOfBeacons = []
+                for beacon in self.beacons_positions :
+                    listOfBeacons.append(self.beacons_positions[beacon])
+                for beacon in listOfBeacons :
+                    startBeacon = beacon 
+                    listOfBeacons.remove(beacon)
+                    bestWay = self.bestWayToGoThere(beacon,listOfBeacons)
+                    for i in bestWay[0] :
+                        self.path.append(i)
+                    break
+                while (listOfBeacons != []) and (listOfBeacons != [None]) and (listOfBeacons != None):
+                    listOfBeacons.remove(bestWay[1])
+                    if (listOfBeacons != []) and (listOfBeacons != [None]) and (listOfBeacons != None):
+                        bestWay = self.bestWayToGoThere(bestWay[1],listOfBeacons)
+                        for index, position in enumerate(bestWay[0]) :
+                            if index != 0 :
+                                self.path.append(position)
 
-            
-            self.chooseDirection(walls, dir, roundedPositions[0], roundedPositions[1])
+                listOfBeacons = [startBeacon]
+                bestWay = self.bestWayToGoThere(bestWay[1],listOfBeacons)
+                for index, position in enumerate(bestWay[0]) :
+                    if index != 0 :
+                        self.path.append(position)
+                self.endChallenge()
 
-            # If the robot has turned, we stop the motors just one time to keep the right direction 
-            if self.hasTurned:
-                self.driveMotors(0.0, 0.0)
-                self.hasTurned = False
-        
-        else:
-            self.goForward(dir)
-        
-            
-        
-    #Utile ?   
-    def motorsCommand(self) : 
-        center_id = 0
-        left_id = 1
-        right_id = 2
-        back_id = 3
-
-        if self.measures.irSensor[center_id] > 1.5 :
-            if self.measures.irSensor[left_id] > self.measures.irSensor[right_id]\
-                 and self.measures.irSensor[left_id] > 1 :
-                self.driveMotors(0.15,-0.15)
-            elif self.measures.irSensor[right_id] > self.measures.irSensor[left_id] \
-                 and self.measures.irSensor[left_id] > 1:
-                self.driveMotors(-0.15,0.15)
-            else : 
-                self.driveMotors(-0.15,0.15)
-        else : 
-            self.goForward(self.measures.compass)
+    def bestWayToGoThere(self, originCell,listOfBeacons):
+        bestDistance = 10000
+        dijkstra = dijkstraLib.DijkstraSPF(self.graph, originCell)
+        for position in listOfBeacons :
+            distance = dijkstra.get_distance(position)
+            if distance < bestDistance :
+                    bestPosition = position
+                    bestDistance = distance
+        if listOfBeacons == [] or listOfBeacons == [None] or listOfBeacons == None:
+            resultat = []
+            bestPosition = None
+        else :
+            resultat = dijkstra.get_path(bestPosition)
+        return (resultat, bestPosition)
     
+    #Le graph est chibronné un peu
+    def addToGraph(self, walls, dir,x,y):
+        #For the wall in front
+
+        if not walls[0] : 
+            if dir <=45 and dir >= -45 :
+                if [x+2, y] in self.visited2 :
+                    self.graph.add_edge((round(x+2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x+2),round(y)), 1)
+            elif dir >=45 and dir <= 135 :
+                if [x, y+2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y+2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y+2)), 1)
+            elif (dir >=135 and dir <=180) or (dir <= -135 and dir >= -180) :
+                if [x-2, y] in self.visited2 :
+                    self.graph.add_edge((round(x-2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x-2),round(y)), 1)
+            elif dir <= -45 and dir >= -135 :
+                if [x, y-2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y-2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y-2)), 1)
+            
+        #For the wall on left
+        if not walls[1] : 
+            if dir <=45 and dir >= -45 :
+                if [x, y+2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y+2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y+2)), 1)
+            elif dir >=45 and dir <= 135 :
+                if [x-2, y] in self.visited2 :
+                    self.graph.add_edge((round(x-2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x-2),round(y)), 1)
+            elif (dir >=135 and dir <=180) or (dir <= -135 and dir >= -180) :
+                if [x, y-2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y-2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y-2)), 1)
+            elif dir <= -45 and dir >= -135 :
+                if [x+2, y] in self.visited2 :
+                    self.graph.add_edge((round(x+2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x+2),round(y)), 1)
+            
+
+
+        #For the wall on right
+        if not walls[2] : 
+            if dir <=45 and dir >= -45 :
+                if [x, y-2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y-2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y-2)), 1)
+            elif dir >=45 and dir <= 135 :
+                if [x+2, y] in self.visited2 :
+                    self.graph.add_edge((round(x+2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x+2),round(y)), 1)
+            elif (dir >=135 and dir <=180) or (dir <= -135 and dir >= -180) :
+                if [x, y+2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y+2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y+2)), 1)
+            elif dir <= -45 and dir >= -135 :
+                if [x-2, y] in self.visited2 :
+                    self.graph.add_edge((round(x-2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x-2),round(y)), 1)
+            
+
+
+        #For the wall on the back
+        if not walls[3] : 
+            if dir <=45 and dir >= -45 :
+                if [x-2, y] in self.visited2 :
+                    self.graph.add_edge((round(x-2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x-2),round(y)), 1)
+            elif dir >=45 and dir <= 135 :
+                if [x, y-2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y-2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y-2)), 1)
+            elif (dir >=135 and dir <=180) or (dir <= -135 and dir >= -180) :
+                if [x+2, y] in self.visited2 :
+                    self.graph.add_edge((round(x+2),round(y)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x+2),round(y)), 1)
+            elif dir <= -45 and dir >= -135 :
+                if [x, y+2] in self.visited2 :
+                    self.graph.add_edge((round(x),round(y+2)), (round(x),round(y)), 1)
+                    self.graph.add_edge((round(x),round(y)), (round(x),round(y+2)), 1)
+            
+
+
 
     def beaconsManagement(self):
         #Initializing the beacons_position dict
@@ -200,18 +292,17 @@ class MyRob(CRobLinkAngs):
         for beacon in range(int(self.nBeacons)) :
             if self.visiting_beacon[beacon]==False and self.beacons_positions[beacon] != [] :
                 if isinstance(self.beacons_positions[beacon][0], list) : 
-                    self.beacons_positions[beacon] = self.averagePosition(self.beacons_positions[beacon])
-
+                    averagePosition = self.averagePosition(self.beacons_positions[beacon])
+                    self.beacons_positions[beacon] = (averagePosition[0], averagePosition[1])
+                
         #If we are on start, we set the start_points here 
         if self.measures.ground == 0 :
             if self.start_positions == []:
                 self.start_positions = [self.measures.x, self.measures.y]
-                self.beacons_positions[0] = [0,0]
-            print("We are on start point !")
+                self.beacons_positions[0] = (0,0)
         
         #We register the positions relatives to the start_points until we get out of the beacon 
         elif self.measures.ground > 0 : 
-            print("Visiting a beacon !")
             beacon = self.measures.ground
             self.registerBeaconPositions(beacon)
             self.visiting_beacon[beacon] = True
@@ -253,24 +344,8 @@ class MyRob(CRobLinkAngs):
                 return_list.append(int(number))
         return return_list
 
-    
-    def goForward(self, dir):
-        #If we are not deviating from the direction, we keep going
-        # Un degré de tolérance, surement a supprimer #if (dir >= -1 and dir <= 1) or (dir >= 89 and dir <= 91) or (dir >= 179 and dir <= 180) or (dir <= -180 and dir >= -181) or (dir >= -91 and dir <= -89):
-        if dir == 0 or dir == 90 or dir == -90 or dir == 180 or dir == -180:
-            self.driveMotors(SPEED, SPEED)
-            return
-        
-        #Else, we adjust the direction
-
-        if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
-            #Turn slowly right
-            self.driveMotors(SPEED, SPEED-OFFSET)
-
-        elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
-            #Turn slowly left
-            self.driveMotors(SPEED-OFFSET, SPEED)
-
+    # Return the walls detected by the sensors
+    # The list is ordered as follows: [front, left, right, back]
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
         if centerSensor >= SENSOR_THRESHOLD:
@@ -290,20 +365,159 @@ class MyRob(CRobLinkAngs):
         if backSensor >= SENSOR_THRESHOLD:
             walls[3] = True
 
-        if not any(walls):
-            print("pas de mur")
-
         return walls
     
-     #Return a list of the adjacent cells that have already been visited
+    #Return True if the current cell is an intersection, i.e if there is more than one way to go, except the way we came from
+    def isIntersection(self, walls):
+        return walls[:-1].count(False) > 1
+    
+    def goForward(self, dir):
+        #If we are not deviating from the direction, we keep going
+        if dir == 0 or dir == 90 or dir == -90 or dir == 180 or dir == -180:
+            self.driveMotors(SPEED, SPEED)
+            return
+        
+        #Else, we adjust the direction
+
+        if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
+            self.driveMotors(SPEED, SPEED-OFFSET)
+
+        elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
+            self.driveMotors(SPEED-OFFSET, SPEED)
+
+    # At each cell, choose the right direction to take, and start going in that direction
+    def chooseDirection(self, walls, dir, x, y, flag):
+        if self.goingBack:
+            pop2 = True
+        else:
+            pop2 = False
+
+        nextVisitedCells = self.nextVisitedCells(dir)
+        target = -1
+        tmp = self.goingBack
+
+        if [round(x), round(y)] in self.intersections:
+            pop = True
+            for i in range(4):
+                if not nextVisitedCells[i] and not walls[i]:
+                    pop = False
+                    break
+            if pop:
+                self.intersections.pop()
+
+        if [round(x), round(y)] in self.intersections and flag:
+            self.goingBack = False
+
+        if self.goingBack:
+            target = self.getDirectionTarget(dir)
+            nextVisitedCells = [False, False, False, False]
+        
+            
+
+        if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
+            self.hasTurned = False
+            self.driveMotors(SPEED, SPEED)
+        elif (not walls[1] and not nextVisitedCells[1] and target == -1) or target == 1:
+            self.hasTurned = True
+            #To avoid the case where the robot is facing the wall and the direction is positive
+            if dir <= 180 and dir >= 170:
+                dir = -180
+            currentDir = dir
+            while dir <= currentDir + ROTATION_DEG:
+                self.driveMotors(-SPEED, SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+            self.driveMotors(-SPEED, SPEED)
+        elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
+            self.hasTurned = True
+            #To avoid the case where the robot is facing the wall and the direction is degative
+            if dir >= -180 and dir <= -170:
+                dir = 180
+            currentDir = dir
+            while dir >= currentDir - ROTATION_DEG:
+                self.driveMotors(SPEED, -SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+            self.driveMotors(SPEED, -SPEED)
+        elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
+            self.hasTurned = True
+            currentDir = dir
+            while True:
+                self.driveMotors(SPEED, -SPEED)
+                self.readSensors()
+                dir = self.measures.compass
+                diff = dir - currentDir
+                if diff > 180:
+                    diff -= 360
+                elif diff < -180:
+                    diff += 360
+
+                if abs(diff) >= 160:
+                    break
+
+            self.driveMotors(SPEED, -SPEED)
+        else:
+            if tmp:
+                self.prevPos.pop()
+                self.prevPos.append([x, y])
+            self.goingBack = True
+            self.prevPos.append([x, y]) 
+            self.chooseDirection(walls, dir, x, y, False)
+        
+        return pop2
+            
+    
+    #Return the direction to take to go back to the previous intersection
+    #0: forward, 1: left, 2: right, 3: back
+    def getDirectionTarget(self, dir):
+        target = -1
+        diffX = round(self.prevPos[-2][0] - self.prevPos[-3][0])
+        diffY = round(self.prevPos[-2][1] - self.prevPos[-3][1])
+        if abs(dir) <= 10:
+            if diffX > 0:
+                target = 3
+            elif diffX < 0:
+                target = 0
+            elif diffY > 0:
+                target = 2
+            elif diffY < 0:
+                target = 1
+        elif abs(dir - 90) <= 10:
+            if diffX > 0:
+                target = 1
+            elif diffX < 0:
+                target = 2
+            elif diffY > 0:
+                target = 3
+            elif diffY < 0:
+                target = 0
+        elif abs(dir + 90) <= 10:
+            if diffX > 0:
+                target = 2
+            elif diffX < 0:
+                target = 1
+            elif diffY > 0:
+                target = 0
+            elif diffY < 0:
+                target = 3
+        elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
+            if diffX > 0:
+                target = 0
+            elif diffX < 0:
+                target = 3
+            elif diffY > 0:
+                target = 1
+            elif diffY < 0:
+                target = 2
+
+        return target
+
+    #Return a list of the adjacent cells that have already been visited
     #The list is ordered as follows: [forward, left, right, back], from the point of view of the robot
     def nextVisitedCells(self, dir):
         visitedCells = [False, False, False, False]
-        x = self.measures.x - self.start_positions[0]
-        y = self.measures.y - self.start_positions[1]
-        roundedPositions = self.roundPositions([x,y])
-        x = roundedPositions[0]
-        y = roundedPositions[1]
+        x = self.visited[-1][0]
+        y = self.visited[-1][1]
 
         if abs(dir) <= 10:
             visitedCells[0] = [x+2, y] in self.visited
@@ -326,208 +540,150 @@ class MyRob(CRobLinkAngs):
             visitedCells[2] = [x, y+2] in self.visited
             visitedCells[3] = [x+2, y] in self.visited
 
-        print(visitedCells)
-        print(dir)
-        print()
         return visitedCells
+
+
+    # Initialize the map with empty cells and starting position
+    def initMap(self):
+        for _ in range(27):
+            self.outputFile.write(" " * 55 + "\n")
+
+        position = (13 * (55 + 1)) + 27
+        self.outputFile.seek(position)
+        self.outputFile.write("I")
+        self.outputFile.seek(position)
     
-    #TODO Make this function viable
-    def turnToDirectionTarget(self, idealDirection):
-        direction = self.measures.compass
-        # idealDirection2 = 0
-        # if idealDirection == 180 :
-        #     idealDirection2 = -180
-        # while not ((direction <= idealDirection+3 and direction >= idealDirection-3) or ((idealDirection2 == -180 or idealDirection2 == -90) and direction <= idealDirection2+3 and direction >= idealDirection2-3)) :
-        #     self.driveMotors(-0.05,0.05)
-        #     self.readSensors()
-        #     direction = self.measures.compass
-        #     if direction <= -160 and direction >= -200 :
-        #         direction = 360 + direction
-        #     self.hasTurned = True
-        
-        
-        if idealDirection == 0 :
-            while direction <= -3 or direction >= 3 :
-                if direction >= -180 and direction <= 0 :
-                    self.driveMotors(-0.05,0.05)
-                else :
-                    self.driveMotors(0.05,-0.05)
-                self.readSensors()
-                direction = self.measures.compass
-                print(direction)
-        if idealDirection == 90 :
-            while direction <= 87 or direction >= 93 :
-                if direction >= -90 and direction <= 90 :
-                    self.driveMotors(-0.15,0.15)
-                else :
-                    self.driveMotors(0.15,-0.15)
-                self.readSensors()
-                direction = self.measures.compass
-                print(direction)
-        if idealDirection == 180 :
-            while (direction <= 177 and direction > 0) or (direction >= -177 and direction < 0):
-                if direction >= 0 and direction <= 180 :
-                    self.driveMotors(-0.15,0.15)
-                else :
-                    self.driveMotors(0.15,-0.15)
-                self.readSensors()
-                direction = self.measures.compass
-                print(direction)
-        if idealDirection == -90 :
-            while direction <= -93 or direction >= -87 :
-                if (direction >= 90 and direction <= 180) or (direction <= -90 and direction >= -180) :
-                    self.driveMotors(-0.15,0.15)
-                else :
-                    self.driveMotors(0.15,-0.15)
-                self.readSensors()
-                direction = self.measures.compass
-                print(direction)
-        self.hasTurned = True
+    # Write the map in the file
+    def writeMap(self, walls, dir):
+        currentPos = self.outputFile.tell()
+
+        try:
+            x1 = self.visited[-1][0]
+            y1 = self.visited[-1][1]
+            x2 = self.visited[-2][0]
+            y2 = self.visited[-2][1]
+
+            if x1 == x2 + 2:
+                self.outputFile.seek(currentPos + 2)
+            elif x1 == x2 - 2:
+                self.outputFile.seek(currentPos - 2)
+            elif y1 == y2 + 2:
+                self.outputFile.seek(currentPos - 56*2)
+            elif y1 == y2 - 2:
+                self.outputFile.seek(currentPos + 56*2)
+
+            currentPos = self.outputFile.tell()
+            self.outputFile.write("X")
+        except:
+            pass
+
+        if dir >= -10 and dir <= 10:
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
 
 
-        self.driveMotors(0.0, 0.0)
-        
-        
-        
+        elif dir >= 80 and dir <= 100:
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
 
-    
-    #TODO : Adapt this function
-    # At each cell, choose the right direction to take, and start going in that direction
-    def chooseDirection(self, walls, dir, x, y):
-        if self.goingBack:
-            pop2 = True
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir <= -80 and dir >= -100:
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir >= 170 or dir <= -170:
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
         else:
-            pop2 = False
-
-        nextVisitedCells = self.nextVisitedCells(dir)
-
-        if (not walls[0] and not nextVisitedCells[0]):
-            print("go forward")
-            self.hasTurned = False
-            self.driveMotors(SPEED, SPEED)
-        elif (not walls[1] and not nextVisitedCells[1]):
-            print("turn left")
-            self.hasTurned = True
-            #To avoid the case where the robot is facing the wall and the direction is positive
-            if dir <= 180 and dir >= 170:
-                dir = -180
-            currentDir = dir
-            while dir <= currentDir + ROTATION_DEG:
-                self.driveMotors(-SPEED, SPEED)
-                self.readSensors()
-                dir = self.measures.compass
-            self.driveMotors(-SPEED, SPEED)
-        elif (not walls[2] and not nextVisitedCells[2]):
-            print("turn right")
-            self.hasTurned = True
-            #To avoid the case where the robot is facing the wall and the direction is degative
-            if dir >= -180 and dir <= -170:
-                dir = 180
-            currentDir = dir
-            while dir >= currentDir - ROTATION_DEG:
-                self.driveMotors(SPEED, -SPEED)
-                self.readSensors()
-                dir = self.measures.compass
-            self.driveMotors(SPEED, -SPEED)
-        else:
-            print("Path entirely explored, going back to the previous intersection")
-            x = self.measures.x - self.start_positions[0]
-            y = self.measures.y - self.start_positions[1]
-            roundedPositions = self.roundPositions([x,y])
-            pathToNextIntersection = self.bestWayToGoThere((roundedPositions[0],roundedPositions[1]))
-            
-            self.path = pathToNextIntersection
-            self.followThePath(dir)
-        
-        return pop2
-
-    #Return True if the current cell is an intersection, i.e if there is more than one way to go, except the way we came from
-    def isIntersection(self, walls):
-        return walls[:-1].count(False) > 1
-
-    def allVisitedHere(self, walls, nextVisitedCells):
-        result = True
-        for index, booleen in enumerate(nextVisitedCells) :
-            if booleen == False :
-                if walls[index] == False :
-                    result = False
-        return result
-
-    
-    def followThePath(self, dir):
-        self.followingPath = True
-        print(self.path)
-        if len(self.path) == 1 :
-            x = self.measures.x - self.start_positions[0]
-            y = self.measures.y - self.start_positions[1]
-            roundedPosition = self.roundPositions([x,y])
-            #Add verification that we are in the cell
-            if (roundedPosition[0], roundedPosition[1]) == self.path[0] :
-                self.path.pop(0)
-                self.followingPath = False
-                print("finished following the path")
-                print(roundedPosition)
-        else : 
-            actualPosition = self.path[0]
-            nextPosition = self.path[1]
-            if (actualPosition[0]+2 == nextPosition[0] and actualPosition[1] == nextPosition[1]):
-                self.turnToDirectionTarget(0.0)
-                self.goForward(0.0)
-            elif (actualPosition[0]-2 == nextPosition[0] and actualPosition[1] == nextPosition[1]):
-                self.turnToDirectionTarget(180.0)
-                self.goForward(180)
-            elif (actualPosition[1]+2 == nextPosition[1] and actualPosition[0] == nextPosition[0]):
-                self.turnToDirectionTarget(90.0)
-                self.goForward(90.0)
-            elif (actualPosition[1]-2 == nextPosition[1] and actualPosition[0] == nextPosition[0]):
-                self.turnToDirectionTarget(-90.0)
-                self.goForward(-90.0)
-            else :
-                print("THE PATH IS WRONG")
-                print(self.graph.get_adjacent_nodes((0,0)))
-            
-            #Add verification that we are in the cell
-            x = self.measures.x - self.start_positions[0]
-            y = self.measures.y - self.start_positions[1]
-            roundedPosition = self.roundPositions([x,y])
-            if (roundedPosition[0], roundedPosition[1]) == self.path[1] :
-                self.path.pop(0)
-        
-
-        
-    def bestWayToGoThere(self, originCell):
-        distances = []
-        bestDistance = 100
-        dijkstra = dijkstraLib.DijkstraSPF(self.graph, originCell)
-        #TODO Modify this with the intersection list
-        for pos in self.intersections :
-            distance = dijkstra.get_distance(pos)
-            if distance < bestDistance :
-                    bestPosition = pos
-                    bestDistance = distance
-        if self.intersections == [] :
-            resultat = []
-        else :
-            resultat = dijkstra.get_path(bestPosition)
-        return resultat
+            print("\033[91m" + "INVALID DIRECTION" + "\033[0m")
 
 
+        self.outputFile.seek(currentPos)
 
+    # End the challenge by closing the output file, printing the score, rewrite the starting position if needed and exit
+    def endChallenge(self):
+        stringToWrite = ""
+        for index, position in enumerate(self.path) :
+            if index != 0 :
+                stringToWrite = stringToWrite + "\n"
+            stringToWrite = stringToWrite + f"{position[0]} {position[1]}"
+        with open("planning.path","w") as file :
+            file.write(stringToWrite)
+            file.close
+        self.finish()
+        print("\033[91m")
+        os.system("gawk -f ./simulator/planning_score.awk ./simulator/planning.out planning.path")
+        print("\033[0m")
 
-# graph={"a":["b","c","d","h"],"b":["a","e"], "c":["a","e"], "d" : ["a","f"], "e":["b","c","f","g"], "f":["d","e","h"], "g":["e", "h"], "h":["f","g","a"]}
-
-# graph = dijkstra.Graph()
-# graph.add_edge("a","b",1)
-# graph.add_edge("a","c",1)
-# graph.add_edge("a","d",1)
-# graph.add_edge("a","h",1)
-# graph.add_edge("b","e",1)
-# graph.add_edge("c","e",1)
-# graph.add_edge("d","f",1)
-# graph.add_edge("e","f",1)
-# graph.add_edge("e","g",1)
-# graph.add_edge("f","h",1)
-# graph.add_edge("g","h",1)
+# Round a number to the nearest 0.5
+def roundTo05(x):
+    return round(x*2)/2
 
 class Map():
     def __init__(self, filename):
@@ -557,7 +713,7 @@ class Map():
            i=i+1
 
 
-rob_name = "pClient3"
+rob_name = "pClient2"
 host = "localhost"
 pos = 1
 mapc = None
@@ -576,9 +732,24 @@ for i in range(1, len(sys.argv),2):
         quit()
 
 if __name__ == '__main__':
-    rob=MyRob(rob_name,pos,[0.0,85.0,-85.0,180.0],host)
+    rob=MyRob(rob_name,pos,[0.0,85.0,-85.0,180.0],host, list(), list(), list())
     if mapc != None:
         rob.setMap(mapc.labMap)
         rob.printMap()
     
     rob.run()
+
+
+"""
+Tâches primaires :
+    Stabiliser le programme au maximum (détéction des murs)
+        Pour le moment, environ 14% de mauvaises décisions
+    Commenter le code
+    Simplifier certaines parties du code
+    Enlever les print de debug
+
+
+Tâches secondaires :
+    Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
+    Faire reculer le robot au lieu de le faire pivoter quand il doit faire demi-tour
+"""
