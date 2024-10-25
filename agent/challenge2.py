@@ -112,7 +112,6 @@ class MyRob(CRobLinkAngs):
                 # If the robot has turned, we stop the motors just one time to keep the right direction 
                 if self.hasTurned:
                     self.driveMotors(0.0, 0.0)
-                # time.sleep(1)
 
             #If we are not in a new cell, we keep going
             else:

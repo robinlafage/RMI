@@ -29,8 +29,6 @@ class MyRob(CRobLinkAngs):
         self.visiting_beacon     = []
         self.start_positions     = []
         self.path = []
-        self.hasAllBeacons = False
-        self.outputFile = open("map.map", "w")
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -48,8 +46,6 @@ class MyRob(CRobLinkAngs):
 
         state = 'stop'
         stopped_state = 'run'
-
-        self.initMap()
 
         while True:
             self.readSensors()
@@ -135,7 +131,6 @@ class MyRob(CRobLinkAngs):
                 # If the robot has turned, we stop the motors just one time to keep the right direction 
                 if self.hasTurned:
                     self.driveMotors(0.0, 0.0)
-                # time.sleep(1)
 
             #If we are not in a new cell, we keep going
             else:
@@ -192,7 +187,6 @@ class MyRob(CRobLinkAngs):
             resultat = dijkstra.get_path(bestPosition)
         return (resultat, bestPosition)
     
-    #Le graph est chibronné un peu
     def addToGraph(self, walls, dir,x,y):
         #For the wall in front
 
@@ -541,126 +535,8 @@ class MyRob(CRobLinkAngs):
             visitedCells[3] = [x+2, y] in self.visited
 
         return visitedCells
-
-
-    # Initialize the map with empty cells and starting position
-    def initMap(self):
-        for _ in range(27):
-            self.outputFile.write(" " * 55 + "\n")
-
-        position = (13 * (55 + 1)) + 27
-        self.outputFile.seek(position)
-        self.outputFile.write("I")
-        self.outputFile.seek(position)
     
-    # Write the map in the file
-    def writeMap(self, walls, dir):
-        currentPos = self.outputFile.tell()
 
-        try:
-            x1 = self.visited[-1][0]
-            y1 = self.visited[-1][1]
-            x2 = self.visited[-2][0]
-            y2 = self.visited[-2][1]
-
-            if x1 == x2 + 2:
-                self.outputFile.seek(currentPos + 2)
-            elif x1 == x2 - 2:
-                self.outputFile.seek(currentPos - 2)
-            elif y1 == y2 + 2:
-                self.outputFile.seek(currentPos - 56*2)
-            elif y1 == y2 - 2:
-                self.outputFile.seek(currentPos + 56*2)
-
-            currentPos = self.outputFile.tell()
-            self.outputFile.write("X")
-        except:
-            pass
-
-        if dir >= -10 and dir <= 10:
-            if walls[0]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos - 56)
-
-            if walls[1]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos + 56)
-
-            if walls[2]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-
-        elif dir >= 80 and dir <= 100:
-            if walls[2]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos - 56)
-
-            if walls[0]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos - 1)
-
-            if walls[1]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-        elif dir <= -80 and dir >= -100:
-            if walls[1]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos + 56)
-
-            if walls[0]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos - 1)
-
-            if walls[2]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-        elif dir >= 170 or dir <= -170:
-            self.outputFile.seek(currentPos - 1)
-
-            if walls[0]:
-                self.outputFile.write("|")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos + 56)
-
-            if walls[1]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-            self.outputFile.seek(currentPos - 56)
-
-            if walls[2]:
-                self.outputFile.write("-")
-            else:
-                self.outputFile.write("X")
-
-        self.outputFile.seek(currentPos)
 
     # End the challenge by closing the output file, printing the score, rewrite the starting position if needed and exit
     def endChallenge(self):
