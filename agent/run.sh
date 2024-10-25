@@ -1,24 +1,49 @@
 #!/bin/bash
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 -c1 | -c2 | -c3"
-    exit 1
-fi
+challenge="1"
+host="localhost"
+robname="theAgent"
+pos="0"
+outfile="solution"
+
+while getopts "c:h:r:p:f:" op
+do
+    case $op in
+        "c")
+            challenge=$OPTARG
+            ;;
+        "h")
+            host=$OPTARG
+            ;;
+        "r")
+            robname=$OPTARG
+            ;;
+        "p")
+            pos=$OPTARG
+            ;;
+        "f")
+            outfile=$OPTARG
+            ;;
+        default)
+            echo "ERROR in parameters"
+            ;;
+    esac
+done
+
+shift $(($OPTIND-1))
 
 source env/bin/activate
-case "$1" in
-    -c1)
-        python3 challenge1.py
+case $challenge in
+    1)
+        python3 challenge1.py -h "$host" -p "$pos" -r "$robname"
         ;;
-    -c2)
-        python3 challenge2.py
+    2)
+        python3 challenge2.py -h "$host" -p "$pos" -r "$robname"
+        mv map.map $outfile.map
         ;;
-    -c3)
-        python3 challenge3.py
-        ;;
-    *)
-        echo "Invalid option. Use -c1, -c2 ou -c3."
-        exit 1
+    3)
+        python3 challenge3.py -h "$host" -p "$pos" -r "$robname"
+        mv planning.path $outfile.path
         ;;
 esac
 
