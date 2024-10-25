@@ -96,15 +96,11 @@ class MyRob(CRobLinkAngs):
         #We arrive in a new cell
         try:
             if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
-                print()
-                print("-----------------------------")
-                print("New cell\n")
                 if not self.goingBack:
                     self.prevPos.append([x, y])
                 self.visited.append([round(x), round(y)])
                 walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
                 self.writeMap(walls, dir)
-                print()
                 if self.isIntersection(walls) and [round(x), round(y)] not in self.intersections:
                     self.intersections.append([round(x), round(y)])
 
@@ -139,33 +135,23 @@ class MyRob(CRobLinkAngs):
     # The list is ordered as follows: [front, left, right, back]
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
         walls = [False, False, False, False]
-        print("centerSensor: ", centerSensor, ", leftSensor: ", leftSensor, ", rightSensor: ", rightSensor, ", backSensor: ", backSensor)
         if centerSensor >= SENSOR_THRESHOLD:
-            print("mur devant")
             walls[0] = True
         # If we are not sure there is a wall in front of us, we keep going and check again
         elif centerSensor >= 0.8 and centerSensor < SENSOR_THRESHOLD:
-            print("\033[91m" + "BELEK ON SAIT PAS TROP LA")
             self.driveMotors(SPEED, SPEED)
             time.sleep(0.015)
             self.readSensors()
             centerSensor = self.measures.irSensor[0]
-            print("centerSensor: ", centerSensor, "\033[0m")
             if centerSensor >= 1.1:
-                print("mur devant")
                 walls[0] = True
         if leftSensor >= SENSOR_THRESHOLD:
-            print("mur à gauche")
             walls[1] = True
         if rightSensor >= SENSOR_THRESHOLD:
-            print("mur à droite")
             walls[2] = True
         if backSensor >= SENSOR_THRESHOLD:
-            print("mur derrière")
             walls[3] = True
 
-        if not any(walls):
-            print("pas de mur")
 
         return walls
     
@@ -217,11 +203,9 @@ class MyRob(CRobLinkAngs):
             
 
         if (not walls[0] and not nextVisitedCells[0] and target == -1) or target == 0:
-            print("go forward")
             self.hasTurned = False
             self.driveMotors(SPEED, SPEED)
         elif (not walls[1] and not nextVisitedCells[1] and target == -1) or target == 1:
-            print("turn left")
             self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is positive
             if dir <= 180 and dir >= 170:
@@ -233,7 +217,6 @@ class MyRob(CRobLinkAngs):
                 dir = self.measures.compass
             self.driveMotors(-SPEED, SPEED)
         elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
-            print("turn right")
             self.hasTurned = True
             #To avoid the case where the robot is facing the wall and the direction is degative
             if dir >= -180 and dir <= -170:
@@ -245,7 +228,6 @@ class MyRob(CRobLinkAngs):
                 dir = self.measures.compass
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
-            print("turn back")
             self.hasTurned = True
             currentDir = dir
             while True:
@@ -263,7 +245,6 @@ class MyRob(CRobLinkAngs):
 
             self.driveMotors(SPEED, -SPEED)
         else:
-            print("Path entirely explored, going back to the previous intersection")
             if tmp:
                 self.prevPos.pop()
                 self.prevPos.append([x, y])
@@ -317,7 +298,6 @@ class MyRob(CRobLinkAngs):
             elif diffY < 0:
                 target = 2
 
-        print("target: ", target)
         return target
 
     #Return a list of the adjacent cells that have already been visited
@@ -348,8 +328,6 @@ class MyRob(CRobLinkAngs):
             visitedCells[2] = [x, y+2] in self.visited
             visitedCells[3] = [x+2, y] in self.visited
 
-        print(visitedCells)
-        print()
         return visitedCells
 
 
@@ -470,8 +448,6 @@ class MyRob(CRobLinkAngs):
             else:
                 self.outputFile.write("X")
 
-        else:
-            print("\033[91m" + "INVALID DIRECTION" + "\033[0m")
 
 
         self.outputFile.seek(currentPos)
@@ -483,9 +459,6 @@ class MyRob(CRobLinkAngs):
         self.outputFile.write("I")
         self.outputFile.close()
         self.finish()
-        print("\033[91m")
-        os.system("gawk -f ../simulator/mapping_score.awk ../simulator/mapping.out map.map")
-        print("\033[0m")
 
 # Round a number to the nearest 0.5
 def roundTo05(x):
@@ -544,18 +517,3 @@ if __name__ == '__main__':
         rob.printMap()
     
     rob.run()
-
-
-"""
-Tâches primaires :
-    Stabiliser le programme au maximum (détéction des murs)
-        Pour le moment, environ 14% de mauvaises décisions
-    Commenter le code
-    Simplifier certaines parties du code
-    Enlever les print de debug
-
-
-Tâches secondaires :
-    Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
-    Faire reculer le robot au lieu de le faire pivoter quand il doit faire demi-tour
-"""

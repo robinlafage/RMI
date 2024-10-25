@@ -74,48 +74,39 @@ class MyRob(CRobLinkAngs):
         if    self.measures.irSensor[center_id]  > 1.1\
             and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
             and self.measures.irSensor[right_id] > 1.15:
-            print('Rotate left')
             self.driveMotors(-0.15,+0.15)
         elif    self.measures.irSensor[center_id]  > 1.1\
             and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
             and self.measures.irSensor[left_id] > 1.15:
-            print('Rotate right')
             self.driveMotors(+0.15,-0.15)
 
         # Security statements, to avoid collision with a lateral wall
         elif self.measures.irSensor[left_id]> 15.0\
             and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
-            print('Rotate fast right, too close from the wall')
             self.driveMotors(0.15,-0.05)
         elif self.measures.irSensor[right_id]> 15.0\
             and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
-            print('Rotate fast left, too close from the wall')
             self.driveMotors(-0.05,0.15)
         
         # Security statements, to avoid collision with a front wall
         elif self.measures.irSensor[center_id]> 15.0\
             and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
-            print('Rotate fast right, too close from the wall')
             self.driveMotors(0.15,-0.15)
         elif self.measures.irSensor[center_id]> 15.0\
             and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
-            print('Rotate fast left, too close from the wall')
             self.driveMotors(-0.15,0.15)
 
         # These two statements make the robot go as straight as possible
         elif self.previous_distances\
             and self.previous_distances[left_id] > self.measures.irSensor[left_id]\
             and self.previous_distances[right_id] < self.measures.irSensor[right_id]:
-            print('Navigate to the left to center the robot')
             self.driveMotors(0.12,0.15)
         elif self.previous_distances\
             and self.previous_distances[left_id] < self.measures.irSensor[left_id]\
             and self.previous_distances[right_id] > self.measures.irSensor[right_id]:
-            print('Navigate to the right to center the robot')
             self.driveMotors(0.15,0.12)
 
         else:
-            print('Go')
             self.driveMotors(0.15,0.15)
         
         # Save the previous distances in order to permit to make the robot go straight

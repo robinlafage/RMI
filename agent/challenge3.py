@@ -660,10 +660,6 @@ class MyRob(CRobLinkAngs):
             else:
                 self.outputFile.write("X")
 
-        else:
-            print("\033[91m" + "INVALID DIRECTION" + "\033[0m")
-
-
         self.outputFile.seek(currentPos)
 
     # End the challenge by closing the output file, printing the score, rewrite the starting position if needed and exit
@@ -677,9 +673,6 @@ class MyRob(CRobLinkAngs):
             file.write(stringToWrite)
             file.close
         self.finish()
-        print("\033[91m")
-        os.system("gawk -f ./simulator/planning_score.awk ./simulator/planning.out planning.path")
-        print("\033[0m")
 
 # Round a number to the nearest 0.5
 def roundTo05(x):
@@ -738,18 +731,3 @@ if __name__ == '__main__':
         rob.printMap()
     
     rob.run()
-
-
-"""
-Tâches primaires :
-    Stabiliser le programme au maximum (détéction des murs)
-        Pour le moment, environ 14% de mauvaises décisions
-    Commenter le code
-    Simplifier certaines parties du code
-    Enlever les print de debug
-
-
-Tâches secondaires :
-    Si il existe un chemin plus court pour revenir à l'intersection précédente, le prendre
-    Faire reculer le robot au lieu de le faire pivoter quand il doit faire demi-tour
-"""
