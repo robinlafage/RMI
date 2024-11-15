@@ -15,6 +15,8 @@ class MyRob(CRobLinkAngs):
         self.theta  = 0.0
         self.outr  = 0.0
         self.outl = 0.0
+        self.drove_left = 0.0
+        self.drove_right = 0.0
         self.startValues={}
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
@@ -81,17 +83,30 @@ class MyRob(CRobLinkAngs):
         if self.startValues == {}:
             self.startValues['x']=self.measures.x
             self.startValues['y']=self.measures.y
+        
+        self.outl = out(self.drove_left, self.outl)
+        self.outr = out(self.drove_right, self.outr)
+        l=lin(self.outl, self.outr)
+        self.x = x(self.x, l, self.theta)
+        self.y = y(self.y, l, self.theta)
+        r=rot(self.outl, self.outr, 1)
+        self.theta = theta(self.theta, r)
+
+
+        print(self.measures.time)
+        print(f"X calculé : {self.x}, X mesuré : {round(self.measures.x,2)}, X relative : {self.measures.x - self.startValues['x']}")
+        print(f"Y calculé : {self.y}, Y mesuré : {self.measures.y-self.startValues['y']}")
         # These statements make the robot rotate when there is a wall in front
         if    self.measures.irSensor[center_id]  > 1.1\
             and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
             and self.measures.irSensor[right_id] > 1.15:
             drive_left = -0.15
-            drive_right=0.15
+            drive_right = 0.15
         elif    self.measures.irSensor[center_id]  > 1.1\
             and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
             and self.measures.irSensor[left_id] > 1.15:
             drive_left = 0.15
-            drive_right=-0.15
+            drive_right = -0.15
 
         # Security statements, to avoid collision with a lateral wall
         elif self.measures.irSensor[left_id]> 15.0\
@@ -104,11 +119,11 @@ class MyRob(CRobLinkAngs):
             drive_right= 0.15
         
         # Security statements, to avoid collision with a front wall
-        elif self.measures.irSensor[center_id]> 15.0\
+        elif self.measures.irSensor[center_id]> 2.0\
             and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
             drive_left = 0.15
             drive_right = -0.15
-        elif self.measures.irSensor[center_id]> 15.0\
+        elif self.measures.irSensor[center_id]> 2.0\
             and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
             drive_left = -0.15
             drive_right = 0.15
@@ -118,19 +133,9 @@ class MyRob(CRobLinkAngs):
             drive_right = 0.15
         
         self.driveMotors(drive_left,drive_right)
-        
-        self.outl = out(drive_left, self.outl, 1)
-        self.outr = out(drive_right, self.outr, 1)
-        l=lin(self.outl, self.outr)
-        self.x = x(self.x, l, self.theta)
-        self.y = y(self.y, l, self.theta)
-        r=rot(self.outl, self.outr, 1)
-        self.theta = theta(self.theta, r)
 
-        self.readSensors()
-        print(f"X calculé : {self.x}, X mesuré : {self.measures.x-self.startValues['x']}")
-        print(f"Y calculé : {self.y}, Y mesuré : {self.measures.y-self.startValues['y']}")
-
+        self.drove_left = drive_left
+        self.drove_right = drive_right
         # Save the previous distances in order to permit to make the robot go straight
         self.previous_distances=[self.measures.irSensor[center_id],self.measures.irSensor[left_id],self.measures.irSensor[right_id],self.measures.irSensor[back_id]]
 
