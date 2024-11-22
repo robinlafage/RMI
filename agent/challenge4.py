@@ -6,6 +6,7 @@ import time
 import os
 import dijkstra as dijkstraLib
 import maths
+from math import degrees
 
 CELLROWS=7
 CELLCOLS=14
@@ -93,9 +94,21 @@ class MyRob(CRobLinkAngs):
             
 
     def driveMotors(self, lPow, rPow):
+        self.calculatePosition()
         self.drove_left = lPow
         self.drove_right = rPow
+        print(f"X calculé : {round(self.x, 1)}")
+        print(f"Y calculé : {round(self.y, 1)}")
         return super().driveMotors(lPow, rPow)
+    
+    def calculatePosition(self):
+        self.outl = maths.out(self.drove_left, self.outl)
+        self.outr = maths.out(self.drove_right, self.outr)
+        l=maths.lin(self.outl, self.outr)
+        self.x = maths.x(self.x, l, self.theta)
+        self.y = maths.y(self.y, l, self.theta)
+        r=maths.rot(self.outl, self.outr, 1)
+        self.theta = maths.theta(self.theta, r)
 
     def wander(self):
         center_id = 0
@@ -115,26 +128,20 @@ class MyRob(CRobLinkAngs):
 
         self.beaconsManagement()
 
-        x2 = self.measures.x - self.start_positions[0]
-        y2 = self.measures.y - self.start_positions[1]
+        x2 = self.x - self.start_positions[0]
+        y2 = self.y - self.start_positions[1]
         roundedPositions = self.roundPositions([x2,y2])
-        dir = self.measures.compass
+        dir = degrees(self.theta)
 
         if self.startValues == {}:
-            self.startValues['x']=self.measures.x
-            self.startValues['y']=self.measures.y
+            self.startValues['x']=self.x
+            self.startValues['y']=self.y
 
-        self.outl = maths.out(self.drove_left, self.outl)
-        self.outr = maths.out(self.drove_right, self.outr)
-        l=maths.lin(self.outl, self.outr)
-        self.x = maths.x(self.x, l, self.theta)
-        self.y = maths.y(self.y, l, self.theta)
-        r=maths.rot(self.outl, self.outr, 1)
-        self.theta = maths.theta(self.theta, r)
+        # self.calculatePosition()
         
         x = roundTo05(self.x)
         y = roundTo05(self.y)
-        dir = self.theta
+        dir = degrees(self.theta)
 
         # print(f"Position: {x}, {y}")
 
@@ -322,7 +329,7 @@ class MyRob(CRobLinkAngs):
         #If we are on start, we set the start_points here 
         if self.measures.ground == 0 :
             if self.start_positions == []:
-                self.start_positions = [self.measures.x, self.measures.y]
+                self.start_positions = [self.x, self.y]
                 self.beacons_positions[0] = (0,0)
         
         #We register the positions relatives to the start_points until we get out of the beacon 
@@ -341,7 +348,7 @@ class MyRob(CRobLinkAngs):
             alreadyWriten = False
         if alreadyWriten == False :
             if not self.start_positions == []:
-                self.beacons_positions[beacon].append([self.measures.x - self.start_positions[0], self.measures.y - self.start_positions[1]])
+                self.beacons_positions[beacon].append([self.x - self.start_positions[0], self.y - self.start_positions[1]])
             else : 
                 print("FIRST BEACON NOT SET, PLEASE START AT FIRST BEACON")   
 
@@ -403,11 +410,11 @@ class MyRob(CRobLinkAngs):
         
         #Else, we adjust the direction
 
-        # if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
-        #     self.driveMotors(SPEED, SPEED-OFFSET)
+        if (dir <= 45 and dir > 0) or (dir <= 135 and dir > 90) or (dir <= -135 and dir > -180) or (dir <= -45 and dir > -90):
+            self.driveMotors(SPEED, SPEED-OFFSET)
 
-        # elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
-        #     self.driveMotors(SPEED-OFFSET, SPEED)
+        elif (dir >= -45 and dir < 0) or (dir >= 45 and dir < 90) or (dir >= 135 and dir < 180 and dir > 0) or (dir >= -135 and dir < -90):
+            self.driveMotors(SPEED-OFFSET, SPEED)
 
     # At each cell, choose the right direction to take, and start going in that direction
     def chooseDirection(self, walls, dir, x, y, flag):
@@ -450,7 +457,8 @@ class MyRob(CRobLinkAngs):
             while dir <= currentDir + ROTATION_DEG:
                 self.driveMotors(-SPEED, SPEED)
                 self.readSensors()
-                dir = self.measures.compass
+                dir = degrees(self.theta)
+                print(dir)
             self.driveMotors(-SPEED, SPEED)
         elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
             self.hasTurned = True
@@ -461,7 +469,8 @@ class MyRob(CRobLinkAngs):
             while dir >= currentDir - ROTATION_DEG:
                 self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
-                dir = self.measures.compass
+                dir = degrees(self.theta)
+                print(dir)
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
             self.hasTurned = True
@@ -469,7 +478,8 @@ class MyRob(CRobLinkAngs):
             while True:
                 self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
-                dir = self.measures.compass
+                dir = degrees(self.theta)
+                print(dir)
                 diff = dir - currentDir
                 if diff > 180:
                     diff -= 360

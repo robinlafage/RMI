@@ -84,18 +84,10 @@ class MyRob(CRobLinkAngs):
             self.startValues['x']=self.measures.x
             self.startValues['y']=self.measures.y
         
-        self.outl = out(self.drove_left, self.outl)
-        self.outr = out(self.drove_right, self.outr)
-        l=lin(self.outl, self.outr)
-        self.x = x(self.x, l, self.theta)
-        self.y = y(self.y, l, self.theta)
-        r=rot(self.outl, self.outr, 1)
-        self.theta = theta(self.theta, r)
+        self.calculatePosition()
 
-
-        print(self.measures.time)
-        print(f"X calculé : {round(self.x, 2)}, X mesuré : {round(self.measures.x,2)}, X relative : {round(self.measures.x - self.startValues['x'], 2)}")
-        print(f"Y calculé : {round(self.y, 2)}, Y mesuré : {round(self.measures.y-self.startValues['y'], 2)}")
+        print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
+        print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
         # These statements make the robot rotate when there is a wall in front
         if    self.measures.irSensor[center_id]  > 1.1\
             and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
@@ -138,6 +130,15 @@ class MyRob(CRobLinkAngs):
         self.drove_right = drive_right
         # Save the previous distances in order to permit to make the robot go straight
         self.previous_distances=[self.measures.irSensor[center_id],self.measures.irSensor[left_id],self.measures.irSensor[right_id],self.measures.irSensor[back_id]]
+
+    def calculatePosition(self):
+        self.outl = out(self.drove_left, self.outl)
+        self.outr = out(self.drove_right, self.outr)
+        l=lin(self.outl, self.outr)
+        self.x = x(self.x, l, self.theta)
+        self.y = y(self.y, l, self.theta)
+        r=rot(self.outl, self.outr, 1)
+        self.theta = theta(self.theta, r)
 
 class Map():
     def __init__(self, filename):

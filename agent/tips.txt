@@ -1,5 +1,5 @@
 Pour la position : 
-Tuiliser le modèle de mouvement : 
+Utiliser le modèle de mouvement : 
 Implique qu'on utilise drive motor à chaque boucle, et une seule fois à chaque fois
 Theta DOIT être en radiants
 Les murs verticaux sont toujours à des endroits précis, on peut donc corriger notre estimate du movement modèle grâce à ça

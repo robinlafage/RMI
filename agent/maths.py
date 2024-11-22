@@ -17,7 +17,6 @@ def x(x, lin, theta):
 def y(y, lin, theta):
     return y + lin*sin(theta)
 
-def out(IN, out):
+def out(IN, OUT):
     minmax = min(max(IN, -0.15), 0.15)
-    return ((minmax+out)/2)
-
+    return ((minmax+OUT)/2)
