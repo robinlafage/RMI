@@ -90,14 +90,13 @@ class MyRob(CRobLinkAngs):
                 if self.measures.returningLed==True:
                     self.setReturningLed(False)
                 self.wander()
-            
 
     def driveMotors(self, lPow, rPow):
-        self.calculatePosition()
         self.drove_left = lPow
         self.drove_right = rPow
-        print(f"X calculé : {round(self.x, 1)}")
-        print(f"Y calculé : {round(self.y, 1)}")
+        self.calculatePosition()
+        print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
+        print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
         return super().driveMotors(lPow, rPow)
     
     def calculatePosition(self):
@@ -130,17 +129,14 @@ class MyRob(CRobLinkAngs):
         x2 = self.x - self.start_positions[0]
         y2 = self.y - self.start_positions[1]
         roundedPositions = self.roundPositions([x2,y2])
-        dir = degrees(self.theta)
 
         if self.startValues == {}:
-            self.startValues['x']=self.x
-            self.startValues['y']=self.y
-
-        # self.calculatePosition()
+            self.startValues['x']=self.measures.x
+            self.startValues['y']=self.measures.y
         
         x = roundTo05(self.x)
         y = roundTo05(self.y)
-        dir = degrees(self.theta)
+        dir = round(degrees(self.theta),0)
 
         # print(f"Position: {x}, {y}")
 
@@ -168,6 +164,7 @@ class MyRob(CRobLinkAngs):
 
                 # If the robot has turned, we stop the motors just one time to keep the right direction 
                 if self.hasTurned:
+                    self.readSensors()
                     self.driveMotors(0.0, 0.0)
 
             #If we are not in a new cell, we keep going
@@ -382,7 +379,7 @@ class MyRob(CRobLinkAngs):
             walls[0] = True
         # If we are not sure there is a wall in front of us, we keep going and check again
         elif centerSensor >= 0.8 and centerSensor < SENSOR_THRESHOLD:
-            # self.driveMotors(SPEED, SPEED)
+            self.driveMotors(SPEED, SPEED)
             time.sleep(0.015)
             self.readSensors()
             centerSensor = self.measures.irSensor[0]
@@ -456,8 +453,7 @@ class MyRob(CRobLinkAngs):
             while dir <= currentDir + ROTATION_DEG:
                 self.driveMotors(-SPEED, SPEED)
                 self.readSensors()
-                dir = degrees(self.theta)
-                print(dir)
+                dir = round(degrees(self.theta),0)
             self.driveMotors(-SPEED, SPEED)
         elif (not walls[2] and not nextVisitedCells[2] and target == -1) or target == 2:
             self.hasTurned = True
@@ -468,8 +464,7 @@ class MyRob(CRobLinkAngs):
             while dir >= currentDir - ROTATION_DEG:
                 self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
-                dir = degrees(self.theta)
-                print(dir)
+                dir = round(degrees(self.theta),0)
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
             self.hasTurned = True
@@ -477,8 +472,7 @@ class MyRob(CRobLinkAngs):
             while True:
                 self.driveMotors(SPEED, -SPEED)
                 self.readSensors()
-                dir = degrees(self.theta)
-                print(dir)
+                dir = round(degrees(self.theta),0)
                 diff = dir - currentDir
                 if diff > 180:
                     diff -= 360
