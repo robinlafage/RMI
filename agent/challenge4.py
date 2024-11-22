@@ -6,7 +6,6 @@ import time
 import os
 import dijkstra as dijkstraLib
 import maths
-from math import degrees
 
 CELLROWS=7
 CELLCOLS=14

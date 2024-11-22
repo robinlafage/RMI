@@ -77,60 +77,21 @@ class MyRob(CRobLinkAngs):
         right_id = 2
         back_id = 3
         
-        drive_left = 0
-        drive_right = 0
+        drive_left = 0.15
+        drive_right = -0.15
 
         if self.startValues == {}:
             self.startValues['x']=self.measures.x
             self.startValues['y']=self.measures.y
         
         self.calculatePosition()
-
-        print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
-        print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
-        # These statements make the robot rotate when there is a wall in front
-        if    self.measures.irSensor[center_id]  > 1.1\
-            and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
-            and self.measures.irSensor[right_id] > 1.15:
-            drive_left = -0.15
-            drive_right = 0.15
-        elif    self.measures.irSensor[center_id]  > 1.1\
-            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
-            and self.measures.irSensor[left_id] > 1.15:
-            drive_left = 0.15
-            drive_right = -0.15
-
-        # Security statements, to avoid collision with a lateral wall
-        elif self.measures.irSensor[left_id]> 15.0\
-            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
-            drive_left = 0.15
-            drive_right=-0.05
-        elif self.measures.irSensor[right_id]> 15.0\
-            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
-            drive_left = -0.05
-            drive_right= 0.15
-        
-        # Security statements, to avoid collision with a front wall
-        elif self.measures.irSensor[center_id]> 2.0\
-            and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
-            drive_left = 0.15
-            drive_right = -0.15
-        elif self.measures.irSensor[center_id]> 2.0\
-            and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
-            drive_left = -0.15
-            drive_right = 0.15
-            
-        else:
-            drive_left = 0.15
-            drive_right = 0.15
         
         self.driveMotors(drive_left,drive_right)
 
         self.drove_left = drive_left
         self.drove_right = drive_right
         # Save the previous distances in order to permit to make the robot go straight
-        self.previous_distances=[self.measures.irSensor[center_id],self.measures.irSensor[left_id],self.measures.irSensor[right_id],self.measures.irSensor[back_id]]
-
+    
     def calculatePosition(self):
         self.outl = out(self.drove_left, self.outl)
         self.outr = out(self.drove_right, self.outr)
