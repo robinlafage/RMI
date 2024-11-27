@@ -38,6 +38,7 @@ class MyRob(CRobLinkAngs):
         self.drove_left = 0.0
         self.drove_right = 0.0
         self.startValues={}
+        self.t = 0
 
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
@@ -95,8 +96,9 @@ class MyRob(CRobLinkAngs):
         self.drove_left = lPow
         self.drove_right = rPow
         self.calculatePosition()
-        print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
-        print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
+        # print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
+        # print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
+        # print(f"Theta calculé : {round(degrees(self.theta), 1)}, Theta mesuré : {round(self.measures.compass, 2)}")
         return super().driveMotors(lPow, rPow)
     
     def calculatePosition(self):
@@ -151,6 +153,9 @@ class MyRob(CRobLinkAngs):
                 self.visited2.append(roundedPositions)
 
                 walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+
+                if walls[0]:
+                    self.calculatePosWithWall(centerSensor, dir)
                 
                 self.addToGraph(walls,dir,roundedPositions[0],roundedPositions[1])
                 
@@ -206,6 +211,59 @@ class MyRob(CRobLinkAngs):
                     if index != 0 :
                         self.path.append(position)
                 self.endChallenge()
+
+    def calculatePosWithWall(self, centerSensor, dir):
+        # Go right
+        xmur=None
+        ymur=None
+        print()
+        if abs(dir) <= 10:
+            xmur = self.nextOdd(self.x)
+            xrobot = xmur - 1/centerSensor - 0.6
+            print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
+            print(round(self.measures.x - self.startValues['x'],1))
+        #Go up
+        elif abs(dir - 90) <= 10:
+            ymur = self.nextOdd(self.y)
+            yrobot = ymur - 1/centerSensor - 0.6
+            print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
+            print(round(self.measures.y - self.startValues['y'],1))
+        #Go down
+        elif abs(dir + 90) <= 10:
+            ymur = self.previousOdd(self.y)
+            yrobot = ymur + 1/centerSensor + 0.6
+            print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
+            print(round(self.measures.y - self.startValues['y'],1))
+        #Go left
+        elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
+            xmur = self.previousOdd(self.x)
+            xrobot = xmur + 1/centerSensor + 0.6
+            print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
+            print(round(self.measures.x - self.startValues['x'],1))
+
+        print(f"xmur : {xmur}, ymur : {ymur}")
+        
+
+    def nextOdd(self, number):
+        base = int(number)
+        
+        if base % 2 == 0:  
+            return base + 1
+        else: 
+            return base + 2
+        
+    def previousOdd(self, number):
+        int_number = int(number)
+        if int_number >= 0:
+            if int_number % 2 != 0:
+                return int_number
+
+            return int_number - 1
+        else:
+            if int_number % 2 != 0:
+                return int_number - 2
+
+            return int_number - 1
 
     def bestWayToGoThere(self, originCell,listOfBeacons):
         bestDistance = 10000
