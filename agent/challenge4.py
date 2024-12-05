@@ -39,6 +39,7 @@ class MyRob(CRobLinkAngs):
         self.drove_right = 0.0
         self.startValues={}
         self.t = 0
+        self.thetaCoefficient = 0.9
 
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
@@ -95,6 +96,9 @@ class MyRob(CRobLinkAngs):
     def driveMotors(self, lPow, rPow):
         self.drove_left = lPow
         self.drove_right = rPow
+        if self.thetaCoefficient > 0.5 :
+            self.thetaCoefficient -= 0.01
+        self.theta = self.calculateOrientation()
         self.calculatePosition()
         # print(f"X calculé : {round(self.x, 1)}, X mesuré : {round(self.measures.x - self.startValues['x'], 2)}")
         # print(f"Y calculé : {round(self.y, 1)}, Y mesuré : {round(self.measures.y - self.startValues['y'], 2)}")
@@ -133,12 +137,13 @@ class MyRob(CRobLinkAngs):
         roundedPositions = self.roundPositions([x2,y2])
 
         if self.startValues == {}:
-            self.startValues['x']=self.measures.x
-            self.startValues['y']=self.measures.y
+            self.startValues['x']=0
+            self.startValues['y']=0
         
         x = roundTo05(self.x)
         y = roundTo05(self.y)
         dir = round(degrees(self.theta),0)
+        
 
         # print(f"Position: {x}, {y}")
 
@@ -146,6 +151,8 @@ class MyRob(CRobLinkAngs):
         try:
             if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
                 print("New cell")
+                print(f'Exact position : {self.x}')
+                print(f"Position: {x}, {y}")
 
                 if not self.goingBack:
                     self.prevPos.append([x, y])
@@ -216,33 +223,51 @@ class MyRob(CRobLinkAngs):
         # Go right
         xmur=None
         ymur=None
-        print()
+        # print()
         if abs(dir) <= 10:
             xmur = self.nextOdd(self.x)
             xrobot = xmur - 1/centerSensor - 0.6
             print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
-            print(round(self.measures.x - self.startValues['x'],1))
+            print(round(self.x - self.startValues['x'],1))
         #Go up
         elif abs(dir - 90) <= 10:
             ymur = self.nextOdd(self.y)
             yrobot = ymur - 1/centerSensor - 0.6
             print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
-            print(round(self.measures.y - self.startValues['y'],1))
+            print(round(self.y - self.startValues['y'],1))
         #Go down
         elif abs(dir + 90) <= 10:
             ymur = self.previousOdd(self.y)
             yrobot = ymur + 1/centerSensor + 0.6
             print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
-            print(round(self.measures.y - self.startValues['y'],1))
+            print(round(self.y - self.startValues['y'],1))
         #Go left
         elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
             xmur = self.previousOdd(self.x)
             xrobot = xmur + 1/centerSensor + 0.6
             print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
-            print(round(self.measures.x - self.startValues['x'],1))
+            print(round(self.x - self.startValues['x'],1))
 
         print(f"xmur : {xmur}, ymur : {ymur}")
         
+    # TODO : Sur la ligne droite en abs, on a tendance à se décaler légèrement vers la gauche, c'est bien relou
+    def calculateOrientation(self):
+        compassCoefficient = 1 - self.thetaCoefficient
+        compass = maths.degToRad(self.measures.compass)
+        # print(f'Value of compass : {compass}')
+        # print(f'Value of theta : {self.theta}')
+        average = self.thetaCoefficient*self.theta + compassCoefficient*compass
+        if (compass > 0 and self.theta < 0) or (compass < 0 and self.theta > 0) :
+            if compass > 2.9 and self.theta < -2.9 :
+                compass = compass - 2*pi
+                average = maths.frameAngle(self.thetaCoefficient*(self.theta) + compassCoefficient*compass)
+                print(f'Average : {average}')
+            elif self.theta > 2.9 and compass < -2.9 :
+                compass = compass + 2*pi
+                average = maths.frameAngle(self.thetaCoefficient*(self.theta) + compassCoefficient*compass)
+                print(f'Average : {average}')
+
+        return average
 
     def nextOdd(self, number):
         base = int(number)
@@ -432,12 +457,17 @@ class MyRob(CRobLinkAngs):
     # Return the walls detected by the sensors
     # The list is ordered as follows: [front, left, right, back]
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
+        print(f'Center : {centerSensor}')
+        print(f'Left : {leftSensor}')
+        print(f'Right : {rightSensor}')
+        print(f'Back : {backSensor}')
         walls = [False, False, False, False]
         if centerSensor >= SENSOR_THRESHOLD:
             walls[0] = True
         # If we are not sure there is a wall in front of us, we keep going and check again
         elif centerSensor >= 0.8 and centerSensor < SENSOR_THRESHOLD:
-            self.driveMotors(SPEED, SPEED)
+            print('HEEERE')
+            self.driveMotors(0.05, 0.05)
             time.sleep(0.015)
             self.readSensors()
             centerSensor = self.measures.irSensor[0]
@@ -480,6 +510,7 @@ class MyRob(CRobLinkAngs):
         nextVisitedCells = self.nextVisitedCells(dir)
         target = -1
         tmp = self.goingBack
+        print(f'Walls : {walls}')
 
         if [round(x), round(y)] in self.intersections:
             pop = True
@@ -525,6 +556,7 @@ class MyRob(CRobLinkAngs):
                 dir = round(degrees(self.theta),0)
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
+            print('demi tour')
             self.hasTurned = True
             currentDir = dir
             while True:
@@ -542,6 +574,7 @@ class MyRob(CRobLinkAngs):
 
             self.driveMotors(SPEED, -SPEED)
         else:
+            print('demi-tour else')
             if tmp:
                 self.prevPos.pop()
                 self.prevPos.append([x, y])
