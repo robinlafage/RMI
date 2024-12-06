@@ -181,14 +181,24 @@ class MyRob(CRobLinkAngs):
 
             #If we are not in a new cell, we keep going
             else:
-                if    self.measures.irSensor[center_id]  > 2\
+                if    self.measures.irSensor[center_id]  > 3\
                     and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
                     and self.measures.irSensor[right_id] > 1.15:
                     self.driveMotors(-0.15,+0.15)
-                elif    self.measures.irSensor[center_id]  > 2\
+                    print('Security front')
+                elif    self.measures.irSensor[center_id]  > 3\
                     and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
                     and self.measures.irSensor[left_id] > 1.15:
                     self.driveMotors(+0.15,-0.15)
+                    print('Security front')
+                elif self.measures.irSensor[left_id]> 10.0\
+                    and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
+                    self.driveMotors(0.15,-0.05)
+                    print('Security left')
+                elif self.measures.irSensor[right_id]> 10.0\
+                    and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
+                    self.driveMotors(-0.05,0.15)
+                    print('Security right')
                 else :
                     self.goForward(dir)
         except:
