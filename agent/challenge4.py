@@ -40,6 +40,7 @@ class MyRob(CRobLinkAngs):
         self.startValues={}
         self.t = 0
         self.thetaCoefficient = 0.9
+        self.posCoefficient = 0.9
 
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
@@ -237,30 +238,45 @@ class MyRob(CRobLinkAngs):
             xrobot = xmur - 1/centerSensor - 0.6
             print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
             print(round(self.x - self.startValues['x'],1))
-            self.x = 0.5*self.x + 0.5*xrobot
+            self.updatePosition(xrobot, None)
         #Go up
         elif abs(dir - 90) <= 10:
             ymur = self.nextOdd(self.y)
             yrobot = ymur - 1/centerSensor - 0.6
             print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
             print(round(self.y - self.startValues['y'],1))
-            self.y = 0.5*self.y + 0.5*yrobot
+            self.updatePosition(None, yrobot)
         #Go down
         elif abs(dir + 90) <= 10:
             ymur = self.previousOdd(self.y)
             yrobot = ymur + 1/centerSensor + 0.6
             print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
             print(round(self.y - self.startValues['y'],1))
-            self.y = 0.5*self.y + 0.5*yrobot
+            self.updatePosition(None, yrobot)
         #Go left
         elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
             xmur = self.previousOdd(self.x)
             xrobot = xmur + 1/centerSensor + 0.6
             print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
             print(round(self.x - self.startValues['x'],1))
-            self.x = 0.5*self.x + 0.5*xrobot
+            self.updatePosition(xrobot, None)
 
         print(f"xmur : {xmur}, ymur : {ymur}")
+
+    def updatePosition(self, xcalc, ycalc):
+        print()
+        if xcalc is not None:
+            self.x = self.posCoefficient*self.x + (1-self.posCoefficient)*xcalc
+            print(f"x : {self.x}")
+        if ycalc is not None:
+            self.y = self.posCoefficient*self.y + (1-self.posCoefficient)*ycalc
+            print(f"y : {self.y}")
+
+        if self.posCoefficient > 0.5 :
+            self.posCoefficient -= 0.01
+            print(f"posCoefficient : {self.posCoefficient}")
+        print()
+
         
     # TODO : Sur la ligne droite en abs, on a tendance à se décaler légèrement vers la gauche, c'est bien relou
     def calculateOrientation(self):
