@@ -582,7 +582,7 @@ class Map():
            i=i+1
 
 
-rob_name = "pClient2"
+rob_name = "pClient3"
 host = "localhost"
 pos = 1
 mapc = None
