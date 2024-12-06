@@ -45,6 +45,11 @@ case $challenge in
         python3 challenge3.py -h "$host" -p "$pos" -r "$robname"
         mv planning.path $outfile.path
         ;;
+    4)
+        python3 challenge4.py -h "$host" -p "$pos" -r "$robname"
+        mv planning.path $outfile.path
+        mv map.map $outfile.map
+        ;;
 esac
 
 deactivate

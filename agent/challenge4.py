@@ -6,6 +6,7 @@ import time
 import os
 import dijkstra as dijkstraLib
 import maths
+from itertools import permutations
 
 CELLROWS=7
 CELLCOLS=14
@@ -149,15 +150,10 @@ class MyRob(CRobLinkAngs):
         dir = round(degrees(self.theta),0)
         
 
-        # print(f"Position: {x}, {y}")
 
         #We arrive in a new cell
         try:
             if not self.prevPos or abs(x - self.prevPos[-1][0]+2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]+2) <= NEW_CELL_THRESHOLD or abs(x - self.prevPos[-1][0]-2) <= NEW_CELL_THRESHOLD or abs(y - self.prevPos[-1][1]-2) <= NEW_CELL_THRESHOLD:
-                # print("New cell")
-                # print(f'Exact position : {self.x}')
-                # print(f"Position: {x}, {y}")
-
                 if not self.goingBack:
                     self.prevPos.append([x, y])
                 self.visited.append([round(x), round(y)])
@@ -190,20 +186,16 @@ class MyRob(CRobLinkAngs):
                     and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
                     and self.measures.irSensor[right_id] > 1.15:
                     self.driveMotors(-0.05,+0.05)
-                    print('Security front')
                 elif    self.measures.irSensor[center_id]  > 3\
                     and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
                     and self.measures.irSensor[left_id] > 1.15:
                     self.driveMotors(+0.05,-0.05)
-                    print('Security front')
                 elif self.measures.irSensor[left_id]> 10.0\
                     and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
                     self.driveMotors(0.05,-0.05)
-                    print('Security left')
                 elif self.measures.irSensor[right_id]> 10.0\
                     and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
                     self.driveMotors(-0.05,0.05)
-                    print('Security right')
                 else :
                     self.goForward(dir)
         except:
@@ -215,100 +207,140 @@ class MyRob(CRobLinkAngs):
             if (not walls[0] and not nextVisitedCells[0]) or (not walls[1] and not nextVisitedCells[1]) or (not walls[2] and not nextVisitedCells[2]) or (not walls[3] and not nextVisitedCells[3]):
                 self.prevPos.append([x, y])
                 self.wander()
-            # Else, we can stop the challenge
+            # Else, we can compute the best possible path then stop the challenge
             else:
-                #Convert dict to list :
-                listOfBeacons = []
-                for beacon in self.beacons_positions :
-                    listOfBeacons.append(self.beacons_positions[beacon])
-                for beacon in listOfBeacons :
-                    startBeacon = beacon 
-                    listOfBeacons.remove(beacon)
-                    bestWay = self.bestWayToGoThere(beacon,listOfBeacons)
-                    for i in bestWay[0] :
-                        self.path.append(i)
-                    break
-                while (listOfBeacons != []) and (listOfBeacons != [None]) and (listOfBeacons != None):
-                    listOfBeacons.remove(bestWay[1])
-                    if (listOfBeacons != []) and (listOfBeacons != [None]) and (listOfBeacons != None):
-                        bestWay = self.bestWayToGoThere(bestWay[1],listOfBeacons)
-                        for index, position in enumerate(bestWay[0]) :
-                            if index != 0 :
-                                self.path.append(position)
-
-                listOfBeacons = [startBeacon]
-                bestWay = self.bestWayToGoThere(bestWay[1],listOfBeacons)
-                for index, position in enumerate(bestWay[0]) :
-                    if index != 0 :
+                # Retrieve the best combination for the beacon order, starting at 0
+                listOfBeacons = self.calculateBestCombination()
+                # If there is not at least 2 beacons, or a good permutation, then we just add the position of the beacon 0
+                if listOfBeacons is None or len(listOfBeacons)<2 :
+                    self.path=(0,0)
+                    self.endChallenge()
+                else :
+                    #Calculating the path for the best combination
+                    path = self.calculatePath(listOfBeacons[0], listOfBeacons[1])
+                    for position in path :
                         self.path.append(position)
-                self.endChallenge()
+                    listOfBeacons.pop(0)
+                    for index in range(len(listOfBeacons)-1) :
+                        self.path.pop()
+                        path = self.calculatePath(listOfBeacons[index], listOfBeacons[index + 1])
+                        for position in path :
+                            self.path.append(position)
+                    
+                    self.endChallenge()
+
+    # This function calculates the best order of beacons to minimize the path length
+    def calculateBestCombination(self):
+        # Calculate all the edges weights
+        listOfBeacons = []
+        dictOfDistances = {}
+        for beacon in self.beacons_positions :
+            listOfBeacons.append(self.beacons_positions[beacon])
+        start = listOfBeacons.pop(0)
+        dictOfDistances[start] = self.bestPathMultiple(start, listOfBeacons)
+        listOfBeaconsCopy = listOfBeacons.copy()
+        for beacon in listOfBeacons :
+            listOfBeaconsCopy.remove(beacon)
+            dictOfDistances[beacon] = self.bestPathMultiple(beacon, listOfBeacons)
+            listOfBeaconsCopy.append(beacon)
+        
+        # Create a new graph with only the targets and the edges weigths calculated before
+        graphOfTargets = dijkstraLib.Graph()
+        for sourceBeacon in list(dictOfDistances.keys()) :
+            for destinationBeacon, distance in dictOfDistances[sourceBeacon] :
+                graphOfTargets.add_edge(sourceBeacon, destinationBeacon, distance)
+                graphOfTargets.add_edge(destinationBeacon, sourceBeacon, distance)
+        
+        # Generate every possibility of order, excluding the first target
+        perms = list(permutations(listOfBeacons))
+        possiblePathsLengths = []
+        newPerms = []
+
+        # Change the type of the permutations from tuple to list
+        # Then, calculate the weight of the full path in this order, including the first target as first and last target to reach
+        for permutation in perms :
+            permutation = list(permutation)
+            permutation.insert(0, start)
+            permutation.append(start)
+            newPerms.append(permutation)
+            distances = 0
+            for index in range(len(permutation)-1):
+                distances += graphOfTargets.get_edge_weight(permutation[index], permutation[index+1])
+            possiblePathsLengths.append(distances)
+        perms = newPerms
+        
+        # Calculate the permutation with the lowest total weight
+        minLength = 10000
+        shortestPermutation = -1
+        for index, length in enumerate(possiblePathsLengths):
+            if length < minLength :
+                minLength = length
+                shortestPermutation = index
+
+        # If there is no permutation with a lower weight than 10000, the in our case we considerate this a bug and return None
+        if shortestPermutation == -1 :
+            return None
+        return perms[shortestPermutation]
+        
+    # Return the path from the origin target to the destination target
+    def calculatePath(self, origin, destination):
+        dijkstra = dijkstraLib.DijkstraSPF(self.graph, origin)
+        return dijkstra.get_path(destination)
+        
+    # Return the list of weights from the origin target
+    def bestPathMultiple(self, originBeacon, listOfBeacons):
+        result = []
+        dijkstra = dijkstraLib.DijkstraSPF(self.graph, originBeacon)
+        for beacon in listOfBeacons :
+            distance = dijkstra.get_distance(beacon)
+            result.append((beacon, distance))
+        return result
 
     def calculatePosWithWall(self, centerSensor, dir):
         # Go right
         xmur=None
         ymur=None
-        # print()
         if abs(dir) <= 10:
             xmur = self.nextOdd(self.x)
             xrobot = xmur - 1/centerSensor - 0.6
-            print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
-            print(round(self.x - self.startValues['x'],1))
             self.updatePosition(xrobot, None)
         #Go up
         elif abs(dir - 90) <= 10:
             ymur = self.nextOdd(self.y)
             yrobot = ymur - 1/centerSensor - 0.6
-            print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
-            print(round(self.y - self.startValues['y'],1))
             self.updatePosition(None, yrobot)
         #Go down
         elif abs(dir + 90) <= 10:
             ymur = self.previousOdd(self.y)
             yrobot = ymur + 1/centerSensor + 0.6
-            print("\033[31my calculé avec le mur : ", round(yrobot, 1), "\033[0m")
-            print(round(self.y - self.startValues['y'],1))
             self.updatePosition(None, yrobot)
         #Go left
         elif abs(dir - 180) <= 10 or abs(dir + 180) <= 10:
             xmur = self.previousOdd(self.x)
             xrobot = xmur + 1/centerSensor + 0.6
-            print("\033[31mx calculé avec le mur : ", round(xrobot, 1), "\033[0m")
-            print(round(self.x - self.startValues['x'],1))
             self.updatePosition(xrobot, None)
 
-        print(f"xmur : {xmur}, ymur : {ymur}")
-
     def updatePosition(self, xcalc, ycalc):
-        print()
         if xcalc is not None:
             self.x = self.posCoefficient*self.x + (1-self.posCoefficient)*xcalc
-            print(f"x : {self.x}")
         if ycalc is not None:
             self.y = self.posCoefficient*self.y + (1-self.posCoefficient)*ycalc
-            print(f"y : {self.y}")
 
         if self.posCoefficient > 0.5 :
             self.posCoefficient -= 0.01
-            print(f"posCoefficient : {self.posCoefficient}")
-        print()
 
         
-    # TODO : Sur la ligne droite en abs, on a tendance à se décaler légèrement vers la gauche, c'est bien relou
     def calculateOrientation(self):
         compassCoefficient = 1 - self.thetaCoefficient
         compass = maths.degToRad(self.measures.compass)
-        # print(f'Value of compass : {compass}')
-        # print(f'Value of theta : {self.theta}')
         average = self.thetaCoefficient*self.theta + compassCoefficient*compass
         if (compass > 0 and self.theta < 0) or (compass < 0 and self.theta > 0) :
             if compass > 2.9 and self.theta < -2.9 :
                 compass = compass - 2*pi
                 average = maths.frameAngle(self.thetaCoefficient*(self.theta) + compassCoefficient*compass)
-                # print(f'Average : {average}')
             elif self.theta > 2.9 and compass < -2.9 :
                 compass = compass + 2*pi
                 average = maths.frameAngle(self.thetaCoefficient*(self.theta) + compassCoefficient*compass)
-                # print(f'Average : {average}')
 
         return average
 
@@ -332,21 +364,6 @@ class MyRob(CRobLinkAngs):
                 return int_number - 2
 
             return int_number - 1
-
-    def bestWayToGoThere(self, originCell,listOfBeacons):
-        bestDistance = 10000
-        dijkstra = dijkstraLib.DijkstraSPF(self.graph, originCell)
-        for position in listOfBeacons :
-            distance = dijkstra.get_distance(position)
-            if distance < bestDistance :
-                    bestPosition = position
-                    bestDistance = distance
-        if listOfBeacons == [] or listOfBeacons == [None] or listOfBeacons == None:
-            resultat = []
-            bestPosition = None
-        else :
-            resultat = dijkstra.get_path(bestPosition)
-        return (resultat, bestPosition)
     
     def addToGraph(self, walls, dir,x,y):
         #For the wall in front
@@ -500,10 +517,6 @@ class MyRob(CRobLinkAngs):
     # Return the walls detected by the sensors
     # The list is ordered as follows: [front, left, right, back]
     def getWalls(self, centerSensor, leftSensor, rightSensor, backSensor):
-        # print(f'Center : {centerSensor}')
-        # print(f'Left : {leftSensor}')
-        # print(f'Right : {rightSensor}')
-        # print(f'Back : {backSensor}')
         walls = [False, False, False, False]
         if centerSensor >= SENSOR_THRESHOLD:
             walls[0] = True
@@ -552,7 +565,6 @@ class MyRob(CRobLinkAngs):
         nextVisitedCells = self.nextVisitedCells(dir)
         target = -1
         tmp = self.goingBack
-        print(f'Walls : {walls}')
 
         if [round(x), round(y)] in self.intersections:
             pop = True
@@ -598,7 +610,6 @@ class MyRob(CRobLinkAngs):
                 dir = round(degrees(self.theta),0)
             self.driveMotors(SPEED, -SPEED)
         elif (not walls[3] and not nextVisitedCells[3] and target == -1) or target == 3:
-            print('demi tour')
             self.hasTurned = True
             currentDir = dir
             while True:
@@ -616,7 +627,6 @@ class MyRob(CRobLinkAngs):
 
             self.driveMotors(SPEED, -SPEED)
         else:
-            print('demi-tour else')
             if tmp:
                 self.prevPos.pop()
                 self.prevPos.append([x, y])
@@ -724,7 +734,6 @@ class MyRob(CRobLinkAngs):
         self.outputFile.seek(centerPosition)
         self.outputFile.write("0")
 
-        print(f"Beacons positions : {self.beacons_positions}")
         for id, pos in self.beacons_positions.items():
             if id != 0:
                 position = centerPosition + (pos[1]* -1 * 56) + pos[0]

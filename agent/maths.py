@@ -1,12 +1,6 @@
 from math import cos, sin, pi, radians, degrees
 
-# This function is not rounded
-# def theta(theta, rot):
-#     res = (theta+rot)%(2*pi)
-#     if res > pi and res <= 2*pi :
-#         res = -pi + (theta+rot)%(pi)
-#     return res
-
+# We round the value to the unity in degrees to match the compass max precision, the go back to radians and make the calculation
 def theta(theta, rot):
     resArrondi = round((theta+rot)*(180/pi))*(pi/180)
     res = (resArrondi)%(2*pi)
