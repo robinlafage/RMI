@@ -42,6 +42,8 @@ class MyRob(CRobLinkAngs):
         self.thetaCoefficient = 0.9
         self.posCoefficient = 0.9
 
+        self.outputFile = open("map.map", "w")
+
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -59,6 +61,8 @@ class MyRob(CRobLinkAngs):
 
         state = 'stop'
         stopped_state = 'run'
+
+        self.initMap()
 
         while True:
             self.readSensors()
@@ -160,6 +164,7 @@ class MyRob(CRobLinkAngs):
                 self.visited2.append(roundedPositions)
 
                 walls = self.getWalls(centerSensor, leftSensor, rightSensor, backSensor)
+                self.writeMap(walls, dir)
 
                 if walls[0]:
                     self.calculatePosWithWall(centerSensor, dir)
@@ -184,20 +189,20 @@ class MyRob(CRobLinkAngs):
                 if    self.measures.irSensor[center_id]  > 3\
                     and self.measures.irSensor[right_id] > self.measures.irSensor[left_id]\
                     and self.measures.irSensor[right_id] > 1.15:
-                    self.driveMotors(-0.15,+0.15)
+                    self.driveMotors(-0.05,+0.05)
                     print('Security front')
                 elif    self.measures.irSensor[center_id]  > 3\
                     and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]\
                     and self.measures.irSensor[left_id] > 1.15:
-                    self.driveMotors(+0.15,-0.15)
+                    self.driveMotors(+0.05,-0.05)
                     print('Security front')
                 elif self.measures.irSensor[left_id]> 10.0\
                     and self.measures.irSensor[left_id]   > self.measures.irSensor[right_id]:
-                    self.driveMotors(0.15,-0.05)
+                    self.driveMotors(0.05,-0.05)
                     print('Security left')
                 elif self.measures.irSensor[right_id]> 10.0\
                     and self.measures.irSensor[right_id]   > self.measures.irSensor[left_id]:
-                    self.driveMotors(-0.05,0.15)
+                    self.driveMotors(-0.05,0.05)
                     print('Security right')
                 else :
                     self.goForward(dir)
@@ -709,7 +714,142 @@ class MyRob(CRobLinkAngs):
         with open("planning.path","w") as file :
             file.write(stringToWrite)
             file.close
+
+        self.writeBeaconsPositions()
+        self.outputFile.close()
         self.finish()
+
+    def writeBeaconsPositions(self):
+        centerPosition = (13 * (55 + 1)) + 27
+        self.outputFile.seek(centerPosition)
+        self.outputFile.write("0")
+
+        print(f"Beacons positions : {self.beacons_positions}")
+        for id, pos in self.beacons_positions.items():
+            if id != 0:
+                position = centerPosition + (pos[1]* -1 * 56) + pos[0]
+                self.outputFile.seek(position)
+                self.outputFile.write(str(id))
+                self.outputFile.seek(centerPosition)
+
+    # Initialize the map with empty cells and starting position
+    def initMap(self):
+        for _ in range(27):
+            self.outputFile.write(" " * 55 + "\n")
+
+        centerPosition = (13 * (55 + 1)) + 27
+        self.outputFile.seek(centerPosition)
+        self.outputFile.write("0")
+        self.outputFile.seek(centerPosition)
+
+        # Write the map in the file
+    def writeMap(self, walls, dir):
+        currentPos = self.outputFile.tell()
+
+        try:
+            x1 = self.visited[-1][0]
+            y1 = self.visited[-1][1]
+            x2 = self.visited[-2][0]
+            y2 = self.visited[-2][1]
+
+            if x1 == x2 + 2:
+                self.outputFile.seek(currentPos + 2)
+            elif x1 == x2 - 2:
+                self.outputFile.seek(currentPos - 2)
+            elif y1 == y2 + 2:
+                self.outputFile.seek(currentPos - 56*2)
+            elif y1 == y2 - 2:
+                self.outputFile.seek(currentPos + 56*2)
+
+            currentPos = self.outputFile.tell()
+            self.outputFile.write("X")
+        except:
+            pass
+
+        if dir >= -10 and dir <= 10:
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+
+        elif dir >= 80 and dir <= 100:
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir <= -80 and dir >= -100:
+            if walls[1]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[0]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[2]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+        elif dir >= 170 or dir <= -170:
+            self.outputFile.seek(currentPos - 1)
+
+            if walls[0]:
+                self.outputFile.write("|")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos + 56)
+
+            if walls[1]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+            self.outputFile.seek(currentPos - 56)
+
+            if walls[2]:
+                self.outputFile.write("-")
+            else:
+                self.outputFile.write("X")
+
+        self.outputFile.seek(currentPos)
 
 # Round a number to the nearest 0.5
 def roundTo05(x):
