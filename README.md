@@ -1,3 +1,14 @@
+# Projet de simulation robotique
+
+Ce projet est inclus dans un environnement de simulation de déplacement d'un robot dans un labyrinthe. Il comprend 4 challenges : 
+- Le robot doit faire le plus de tours possibles dans un labyrinthe en un temps donné. Il doit éviter les obstacles à l'aide de capteurs de distance. Il n'a pas accès à la carte du labyrinthe, ni au GPS.
+- Le robot doit explorer l'entièreté d'un labyrinthe en un temps donné. Il a accès aux capteurs de distances et à un GPS.
+- Le robot doit explorer un labyrinthe pour en trouver tous les checkpoints, et déterminer le chemin le plus court pour tous les rejoindre. Il a accès aux capteurs de distances et à un GPS.
+- Le robot doit à nouveau explorer l'entièreté d'un labyrinthe, mais sans GPS. Il doit se repérer à l'aide des équations de modèle de mouvement.  
+
+Les capteurs et les moteurs ont du bruit dans leurs mesures. Le robot doit donc être capable de gérer l'incertitude dans ses déplacements et dans la perception de son environnement.  
+Le code source du robot a été écrit en Python. Il se trouve dans le dossier `agent`. Pour lancer la simulation, exécuter le script `startCX` (où X est le numéro du challenge), puis le script `challengeX.py` dans le dossier `agent`.
+
 
 # CiberRato Robot Simulation Environment <br/> Universidade de Aveiro / IEETA 
 
@@ -81,6 +92,3 @@ To run the simulator, Viewer and C++ agent, execute (at the repository base dir)
   efp@ua.pt
 
  Copyright (C) 2001-2024 Universidade de Aveiro
-
-
-# RMI
